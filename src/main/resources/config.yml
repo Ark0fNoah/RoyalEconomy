@@ -1,0 +1,20 @@
+# RoyalEconomy Configuration
+#
+  # Placeholders you can use in chat formats:
+  #   %royaleconomy_balance%
+  #   %royaleconomy_balance_formatted%
+  #   %royaleconomy_top_1_name%
+  #   %royaleconomy_top_1_balance%
+
+softdepend: [PlaceholderAPI]
+
+currency:
+  singular: coin
+  plural: coins
+  symbol: "⛁"
+  format: "#,##0.00"
+  prefix: ""
+  suffix: " coins"
+
+starting-balance: 100.0
+max-balance: 1000000000.0

@@ -1,21 +1,22 @@
 package com.ArkOfNoah.RoyalEconomy.core;
 
-import com.ArkOfNoah.RoyalEconomy.RoyalEconomyPlugin;
+import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
 import com.ArkOfNoah.RoyalEconomy.api.Economy;
 
 import java.text.DecimalFormat;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public class EconomyManager implements Economy {
 
-    private final RoyalEconomyPlugin plugin;
+    private final RoyalEconomy plugin;
     private final StorageHandler storage;
     private final Map<UUID, Double> balances = new HashMap<>();
     private final DecimalFormat decimalFormat = new DecimalFormat("#,##0.00");
 
-    public EconomyManager(RoyalEconomyPlugin plugin, StorageHandler storage) {
+    public EconomyManager(RoyalEconomy plugin, StorageHandler storage) {
         this.plugin = plugin;
         this.storage = storage;
 
@@ -25,6 +26,7 @@ public class EconomyManager implements Economy {
 
     @Override
     public double getBalance(UUID uuid) {
+        // If player not known yet, use default starting balance
         return balances.getOrDefault(uuid, getDefaultBalance());
     }
 
@@ -72,11 +74,20 @@ public class EconomyManager implements Economy {
         return decimalFormat.format(amount) + " coins";
     }
 
+    /**
+     * Default starting balance from config.
+     */
     public double getDefaultBalance() {
         return plugin.getConfig().getDouble("default-balance", 0.0);
     }
 
+    /**
+     * All balances, used mainly by StorageHandler.
+     */
+    @Override
     public Map<UUID, Double> getAllBalances() {
-        return balances;
+        // If you want to protect the map from external modification:
+        return Collections.unmodifiableMap(balances);
+        // If you don't care: just "return balances;" instead.
     }
 }

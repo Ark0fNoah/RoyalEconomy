@@ -11,9 +11,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class RoyalEconomyPlugin extends JavaPlugin {
+public class RoyalEconomy extends JavaPlugin {
 
-    private static RoyalEconomyPlugin instance;
+    private static RoyalEconomy instance;
     private EconomyManager economyManager;
     private StorageHandler storageHandler;
 
@@ -30,6 +30,13 @@ public class RoyalEconomyPlugin extends JavaPlugin {
         registerCommands();
         registerListeners();
         registerService();
+
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new com.ArkOfNoah.RoyalEconomy.placeholder.RoyalEconomyExpansion(this).register();
+            getLogger().info("Registered RoyalEconomy PlaceholderAPI expansion.");
+        } else {
+            getLogger().info("PlaceholderAPI not found. Skipping PAPI expansion registration.");
+        }
 
         getLogger().info("RoyalEconomy enabled!");
     }
@@ -65,7 +72,7 @@ public class RoyalEconomyPlugin extends JavaPlugin {
         );
     }
 
-    public static RoyalEconomyPlugin getInstance() {
+    public static RoyalEconomy getInstance() {
         return instance;
     }
 

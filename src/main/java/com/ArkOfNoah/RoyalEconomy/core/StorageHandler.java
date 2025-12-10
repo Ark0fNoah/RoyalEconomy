@@ -1,6 +1,6 @@
 package com.ArkOfNoah.RoyalEconomy.core;
 
-import com.ArkOfNoah.RoyalEconomy.RoyalEconomyPlugin;
+import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -12,13 +12,13 @@ import java.util.UUID;
 
 public class StorageHandler {
 
-    private final RoyalEconomyPlugin plugin;
+    private final RoyalEconomy plugin;
     private final File file;
     private FileConfiguration config;
 
     private final Map<UUID, Double> loadedBalances = new HashMap<>();
 
-    public StorageHandler(RoyalEconomyPlugin plugin) {
+    public StorageHandler(RoyalEconomy plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "balances.yml");
     }

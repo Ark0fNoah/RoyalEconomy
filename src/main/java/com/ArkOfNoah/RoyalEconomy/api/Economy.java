@@ -1,5 +1,6 @@
 package com.ArkOfNoah.RoyalEconomy.api;
 
+import java.util.Map;
 import java.util.UUID;
 
 public interface Economy {
@@ -27,4 +28,6 @@ public interface Economy {
      * Simple currency formatting for display.
      */
     String format(double amount);
+
+    Map<UUID, Double> getAllBalances();
 }
