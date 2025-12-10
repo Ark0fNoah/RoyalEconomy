@@ -288,6 +288,6 @@ placeholderapi:
 ############################################################
 # FEATURE: VAULT ECONOMY BRIDGE
 ############################################################
-vault:
-  enabled: true
+vault2:
+  enabled: false
   # If true, RoyalEconomy will register as a Vault economy provider (if Vault is installed).

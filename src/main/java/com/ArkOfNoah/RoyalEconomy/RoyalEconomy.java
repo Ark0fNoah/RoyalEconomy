@@ -17,15 +17,13 @@ import com.ArkOfNoah.RoyalEconomy.commands.EcoAdminCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.BaltopCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.BankCommand;
 import com.ArkOfNoah.RoyalEconomy.listeners.PlayerJoinListener;
-import com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
+import java.lang.reflect.Constructor;
+import java.util.logging.Level;
 
 public class RoyalEconomy extends JavaPlugin {
-
-    // Vault2 provider (VaultUnlocked)
-    private net.milkbowl.vault2.economy.Economy vaultProvider;
 
     private static RoyalEconomy instance;
 
@@ -40,27 +38,50 @@ public class RoyalEconomy extends JavaPlugin {
     private LeaderboardManager leaderboardManager;
     private BankManager bankManager;
 
-    // ─────────────────────────────────────
-    // Vault2 bridge (ONLY Vault2)
-    // ─────────────────────────────────────
-    private void setupVaultBridge() {
-        if (getServer().getPluginManager().getPlugin("Vault") == null) {
-            getLogger().info("VaultUnlocked/Vault not found. Skipping Vault2 bridge.");
+    private void setupVault2Bridge() {
+        // 1) Config toggle
+        if (!getConfig().getBoolean("hooks.vault2.enabled", true)) {
+            getLogger().info("Vault2 bridge disabled in config (hooks.vault2.enabled=false).");
             return;
         }
 
-        // Our Vault2 Economy implementation
-        vaultProvider = new RoyalEconomyVaultBridge(this, economyManager);
+        // 2) Check if Vault / VaultUnlocked plugin is installed
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            getLogger().info("Vault / VaultUnlocked not found. Skipping Vault2 bridge.");
+            return;
+        }
 
-        // Register as Vault2 Economy provider
-        Bukkit.getServicesManager().register(
-                net.milkbowl.vault2.economy.Economy.class,
-                vaultProvider,
-                this,
-                ServicePriority.Highest
-        );
+        try {
+            // 3) Try to load Vault2 Economy interface
+            Class<?> vaultEcoClass = Class.forName("net.milkbowl.vault2.economy.Economy");
 
-        getLogger().info("Registered RoyalEconomy as VaultUnlocked (Vault2) economy provider.");
+            // 4) Try to load your bridge class
+            Class<?> bridgeClass = Class.forName("com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge");
+
+            // RoyalEconomyVaultBridge(RoyalEconomy plugin, com.ArkOfNoah.RoyalEconomy.api.Economy royalEconomy)
+            Constructor<?> ctor = bridgeClass.getConstructor(
+                    com.ArkOfNoah.RoyalEconomy.RoyalEconomy.class,
+                    com.ArkOfNoah.RoyalEconomy.api.Economy.class
+            );
+
+            Object bridgeInstance = ctor.newInstance(this, (com.ArkOfNoah.RoyalEconomy.api.Economy) economyManager);
+
+            // 5) Register with Bukkit Services
+            Bukkit.getServicesManager().register(
+                    (Class) vaultEcoClass,
+                    bridgeInstance,
+                    this,
+                    ServicePriority.Highest
+            );
+
+            getLogger().info("Registered RoyalEconomy as Vault2 (VaultUnlocked) economy provider.");
+        } catch (ClassNotFoundException e) {
+            // This means Vault2 API classes are NOT present on the server.
+            getLogger().info("Vault2 API (net.milkbowl.vault2.economy.Economy) not found. Skipping Vault2 bridge.");
+        } catch (Exception ex) {
+            // Any other reflection or instantiation problem
+            getLogger().log(Level.WARNING, "Failed to setup Vault2 bridge: " + ex.getMessage(), ex);
+        }
     }
 
     public void reloadLogger() {
@@ -126,8 +147,7 @@ public class RoyalEconomy extends JavaPlugin {
         registerCommands();
         registerListeners();
 
-        // Vault2 bridge
-        setupVaultBridge();
+        setupVault2Bridge();
 
         // PlaceholderAPI expansion
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
