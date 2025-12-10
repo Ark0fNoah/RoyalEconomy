@@ -6,6 +6,9 @@ import com.ArkOfNoah.RoyalEconomy.core.StorageHandler;
 import com.ArkOfNoah.RoyalEconomy.core.TransactionLogger;
 import com.ArkOfNoah.RoyalEconomy.core.LeaderboardManager;
 import com.ArkOfNoah.RoyalEconomy.core.BankManager;
+import com.ArkOfNoah.RoyalEconomy.core.BoostManager;
+import com.ArkOfNoah.RoyalEconomy.core.InterestTask;
+import com.ArkOfNoah.RoyalEconomy.core.TaxManager;
 import com.ArkOfNoah.RoyalEconomy.commands.BalanceCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.RoyalEconomyCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.RoyalEconomyTabCompleter;
@@ -22,6 +25,10 @@ public class RoyalEconomy extends JavaPlugin {
 
     private static RoyalEconomy instance;
 
+    private TaxManager taxManager;
+    private BoostManager boostManager;
+    private InterestTask interestTask;
+
     private EconomyManager economyManager;
     private StorageHandler storageHandler;
 
@@ -36,6 +43,14 @@ public class RoyalEconomy extends JavaPlugin {
     public void reloadLeaderboard() {
         int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
         leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
+    }
+
+    public TaxManager getTaxManager() {
+        return taxManager;
+    }
+
+    public BoostManager getBoostManager() {
+        return boostManager;
     }
 
     @Override
@@ -63,6 +78,29 @@ public class RoyalEconomy extends JavaPlugin {
             bankManager.load();
         }
 
+        // Boosts
+        boostManager = new BoostManager(this);
+
+        // Taxes
+        taxManager = new TaxManager(this, economyManager);
+
+        // Banks already exist
+        bankManager = new BankManager(this, economyManager);
+        if (getConfig().getBoolean("banks.enabled", false)) {
+            bankManager.load();
+        }
+
+        // Interest
+        if (getConfig().getBoolean("interest.enabled", false)) {
+            int minutes = getConfig().getInt("interest.interval-minutes", 60);
+            long ticks = minutes * 60L * 20L;
+            if (ticks <= 0) ticks = 20L * 60L; // fallback 1 minute so it always runs
+
+            interestTask = new InterestTask(this, economyManager, bankManager, boostManager);
+            interestTask.runTaskTimer(this, ticks, ticks);
+            getLogger().info("InterestTask scheduled every " + minutes + " minute(s).");
+        }
+
         registerService();
         registerCommands();
         registerListeners();
@@ -86,6 +124,11 @@ public class RoyalEconomy extends JavaPlugin {
         if (bankManager != null && getConfig().getBoolean("banks.enabled", false)) {
             bankManager.save();
         }
+
+        if (interestTask != null) {
+            interestTask.cancel();
+        }
+
         getLogger().info("RoyalEconomy disabled!");
     }
 

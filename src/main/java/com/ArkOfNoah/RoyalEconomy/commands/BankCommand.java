@@ -1,7 +1,6 @@
 package com.ArkOfNoah.RoyalEconomy.commands;
 
 import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
-import com.ArkOfNoah.RoyalEconomy.core.Bank;
 import com.ArkOfNoah.RoyalEconomy.core.BankManager;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -88,7 +87,8 @@ public class BankCommand implements CommandExecutor {
         }
         String name = args[1];
 
-        Bank bank = bankManager.createBank(player.getUniqueId(), name);
+        // create the bank
+        BankManager.Bank bank = bankManager.createBank(player.getUniqueId(), name);
         if (bank == null) {
             String msg = config.getString("banks.messages.max-banks-reached",
                     "%prefix% &cYou cannot create more banks or that name is taken.");
@@ -116,7 +116,7 @@ public class BankCommand implements CommandExecutor {
             return;
         }
         String name = args[1];
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;
@@ -152,7 +152,7 @@ public class BankCommand implements CommandExecutor {
     }
 
     private void handleList(Player player) {
-        List<Bank> banks = bankManager.getBanksForPlayer(player.getUniqueId());
+        List<BankManager.Bank> banks = bankManager.getBanksForPlayer(player.getUniqueId());
         String header = config.getString("banks.messages.list-header",
                 "%prefix% &6Your banks:");
         player.sendMessage(color(applyPrefix(header)));
@@ -164,7 +164,7 @@ public class BankCommand implements CommandExecutor {
 
         String lineFmt = config.getString("banks.messages.list-entry",
                 "&7- &e%bank_name% &7(&a%balance_formatted%&7)");
-        for (Bank bank : banks) {
+        for (BankManager.Bank bank : banks) {
             String line = lineFmt
                     .replace("%bank_name%", bank.getName())
                     .replace("%balance_formatted%",
@@ -179,7 +179,7 @@ public class BankCommand implements CommandExecutor {
             return;
         }
         String name = args[1];
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;
@@ -232,15 +232,19 @@ public class BankCommand implements CommandExecutor {
             player.sendMessage(color(applyPrefix("&cUsage: /bank deposit <name> <amount>")));
             return;
         }
+
         String name = args[1];
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;
         }
+
         if (!bank.isMember(player.getUniqueId())) {
-            player.sendMessage(color(applyPrefix(config.getString("banks.messages.no-access",
-                    "%prefix% &cYou don't have access to that bank."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "banks.messages.no-access",
+                    "%prefix% &cYou don't have access to that bank."
+            ))));
             return;
         }
 
@@ -248,20 +252,35 @@ public class BankCommand implements CommandExecutor {
         try {
             amount = Double.parseDouble(args[2]);
         } catch (NumberFormatException e) {
-            player.sendMessage(color(applyPrefix(config.getString("messages.invalid-amount",
-                    "%prefix% &cInvalid amount."))));
-            return;
-        }
-        if (amount <= 0) {
-            player.sendMessage(color(applyPrefix(config.getString("messages.negative-amount",
-                    "%prefix% &cAmount must be positive."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "messages.invalid-amount",
+                    "%prefix% &cInvalid amount."
+            ))));
             return;
         }
 
-        boolean success = bankManager.depositToBank(bank, player.getUniqueId(), amount);
+        if (amount <= 0) {
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "messages.negative-amount",
+                    "%prefix% &cAmount must be positive."
+            ))));
+            return;
+        }
+
+        // Apply tax on bank-deposit (if enabled)
+        double netAmount = plugin.getTaxManager().applyTax(
+                "bank-deposit",
+                amount,
+                player.getUniqueId(),
+                null
+        );
+
+        boolean success = bankManager.depositToBank(bank, player.getUniqueId(), netAmount);
         if (!success) {
-            player.sendMessage(color(applyPrefix(config.getString("core.core-messages.insufficient-funds",
-                    "%prefix% &cYou don't have enough money."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "core.core-messages.insufficient-funds",
+                    "%prefix% &cYou don't have enough money."
+            ))));
             return;
         }
 
@@ -269,13 +288,13 @@ public class BankCommand implements CommandExecutor {
                 "%prefix% &aDeposited %amount_formatted% &ainto '&e%bank_name%&a'.");
         msg = msg
                 .replace("%bank_name%", bank.getName())
-                .replace("%amount_formatted%", plugin.getEconomy().format(amount));
+                .replace("%amount_formatted%", plugin.getEconomy().format(netAmount));
         player.sendMessage(color(applyPrefix(msg)));
 
         plugin.getTransactionLogger().log(
                 player.getName(),
                 "BANK:" + bank.getName(),
-                amount,
+                netAmount,
                 "BANK_DEPOSIT",
                 true
         );
@@ -286,15 +305,19 @@ public class BankCommand implements CommandExecutor {
             player.sendMessage(color(applyPrefix("&cUsage: /bank withdraw <name> <amount>")));
             return;
         }
+
         String name = args[1];
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;
         }
+
         if (!bank.isMember(player.getUniqueId())) {
-            player.sendMessage(color(applyPrefix(config.getString("banks.messages.no-access",
-                    "%prefix% &cYou don't have access to that bank."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "banks.messages.no-access",
+                    "%prefix% &cYou don't have access to that bank."
+            ))));
             return;
         }
 
@@ -302,20 +325,35 @@ public class BankCommand implements CommandExecutor {
         try {
             amount = Double.parseDouble(args[2]);
         } catch (NumberFormatException e) {
-            player.sendMessage(color(applyPrefix(config.getString("messages.invalid-amount",
-                    "%prefix% &cInvalid amount."))));
-            return;
-        }
-        if (amount <= 0) {
-            player.sendMessage(color(applyPrefix(config.getString("messages.negative-amount",
-                    "%prefix% &cAmount must be positive."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "messages.invalid-amount",
+                    "%prefix% &cInvalid amount."
+            ))));
             return;
         }
 
-        boolean success = bankManager.withdrawFromBank(bank, player.getUniqueId(), amount);
+        if (amount <= 0) {
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "messages.negative-amount",
+                    "%prefix% &cAmount must be positive."
+            ))));
+            return;
+        }
+
+        // Apply tax on bank-withdraw (if enabled)
+        double netAmount = plugin.getTaxManager().applyTax(
+                "bank-withdraw",
+                amount,
+                null,
+                player.getUniqueId()
+        );
+
+        boolean success = bankManager.withdrawFromBank(bank, player.getUniqueId(), netAmount);
         if (!success) {
-            player.sendMessage(color(applyPrefix(config.getString("banks.messages.insufficient-funds",
-                    "%prefix% &cThe bank does not have enough money."))));
+            player.sendMessage(color(applyPrefix(config.getString(
+                    "banks.messages.insufficient-funds",
+                    "%prefix% &cThe bank does not have enough money."
+            ))));
             return;
         }
 
@@ -323,13 +361,13 @@ public class BankCommand implements CommandExecutor {
                 "%prefix% &aWithdrew %amount_formatted% &afrom '&e%bank_name%&a'.");
         msg = msg
                 .replace("%bank_name%", bank.getName())
-                .replace("%amount_formatted%", plugin.getEconomy().format(amount));
+                .replace("%amount_formatted%", plugin.getEconomy().format(netAmount));
         player.sendMessage(color(applyPrefix(msg)));
 
         plugin.getTransactionLogger().log(
                 "BANK:" + bank.getName(),
                 player.getName(),
-                amount,
+                netAmount,
                 "BANK_WITHDRAW",
                 true
         );
@@ -343,7 +381,7 @@ public class BankCommand implements CommandExecutor {
         OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
         String name = args[2];
 
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;
@@ -385,7 +423,7 @@ public class BankCommand implements CommandExecutor {
         OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
         String name = args[2];
 
-        Bank bank = bankManager.getBank(name);
+        BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
             sendBankNotFound(player);
             return;

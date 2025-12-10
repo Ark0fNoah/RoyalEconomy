@@ -13,7 +13,7 @@ commands:
     usage: /pay <player> <amount>
   eco:
     description: Admin economy commands
-    usage: /eco <set|give|take> <player> <amount>
+    usage: "/eco <set|give|take> <player> <amount> or /eco debugtest"
     permission: royaleconomy.admin
   baltop:
     description: Show top balances
@@ -24,7 +24,7 @@ commands:
   royaleconomy:
     description: RoyalEconomy main command
     usage: /royaleconomy reload
-    permission: royaleconomy.reload
+    permission: royaleconomy.reload\
 
 permissions:
   royaleconomy.admin:
@@ -39,3 +39,9 @@ permissions:
     default: op
   royaleconomy.reload:
     default: op
+  royaleconomy.boost.2x:
+    default: false
+  royaleconomy.boost.1_5x:
+    default: false
+  royaleconomy.boost.1_1x:
+    default: false

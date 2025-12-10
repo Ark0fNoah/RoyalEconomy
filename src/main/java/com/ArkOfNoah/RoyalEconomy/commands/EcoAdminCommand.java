@@ -32,8 +32,16 @@ public class EcoAdminCommand implements CommandExecutor {
             return true;
         }
 
+        // /eco debugtest
+        if (args.length >= 1 && args[0].equalsIgnoreCase("debugtest")) {
+            runDebugTest(sender);
+            return true;
+        }
+
+        // Normal /eco <set|give|take> <player> <amount>
         if (args.length != 3) {
             sender.sendMessage(color(applyPrefix("&cUsage: /eco <set|give|take> <player> <amount>")));
+            sender.sendMessage(color(applyPrefix("&7Or: &e/eco debugtest &7to run a quick diagnostic.")));
             return true;
         }
 
@@ -131,6 +139,78 @@ public class EcoAdminCommand implements CommandExecutor {
         }
 
         return true;
+    }
+
+    // ─────────────────────────────────────────
+    // /eco debugtest implementation
+    // ─────────────────────────────────────────
+    private void runDebugTest(CommandSender sender) {
+        sender.sendMessage(color(applyPrefix("&6Running RoyalEconomy debug test...")));
+
+        // 1) Core loaded
+        sendCheck(sender, "Core economy manager",
+                economy != null);
+
+        // 2) Storage / balances available
+        boolean hasBalances = economy != null && economy.getAllBalances() != null;
+        sendCheck(sender, "Balance map available",
+                hasBalances);
+
+        // 3) Transaction logger
+        sendCheck(sender, "Transaction logger",
+                plugin.getTransactionLogger() != null);
+
+        // 4) Banks
+        boolean banksEnabled = config.getBoolean("banks.enabled", false);
+        if (banksEnabled) {
+            sendCheck(sender, "Bank manager (banks.enabled = true)",
+                    plugin.getBankManager() != null);
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &eBanks disabled &7in config (banks.enabled=false)")));
+        }
+
+        // 5) Baltop
+        boolean baltopEnabled = config.getBoolean("baltop.enabled", true);
+        if (baltopEnabled) {
+            sendCheck(sender, "Leaderboard manager (baltop.enabled = true)",
+                    plugin.getLeaderboardManager() != null);
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &eBaltop disabled &7in config (baltop.enabled=false)")));
+        }
+
+        // 6) PlaceholderAPI
+        boolean papiPresent = (plugin.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null);
+        sendCheck(sender, "PlaceholderAPI detected",
+                papiPresent);
+
+        // 7) Taxes / boosts / interest just config sanity
+        if (config.getBoolean("taxes.enabled", false)) {
+            sender.sendMessage(color(applyPrefix("&7- &aTaxes enabled&7 in config.")));
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &eTaxes disabled&7 in config.")));
+        }
+
+        if (config.getBoolean("boosts.enabled", false)) {
+            sender.sendMessage(color(applyPrefix("&7- &aBoosts enabled&7 in config.")));
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &eBoosts disabled&7 in config.")));
+        }
+
+        if (config.getBoolean("interest.enabled", false)) {
+            sender.sendMessage(color(applyPrefix("&7- &aInterest enabled&7 in config.")));
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &eInterest disabled&7 in config.")));
+        }
+
+        sender.sendMessage(color(applyPrefix("&aDebug test finished.")));
+    }
+
+    private void sendCheck(CommandSender sender, String name, boolean ok) {
+        if (ok) {
+            sender.sendMessage(color(applyPrefix("&7- &a\u2714 " + name)));
+        } else {
+            sender.sendMessage(color(applyPrefix("&7- &c\u2716 " + name)));
+        }
     }
 
     private String getPrefix() {

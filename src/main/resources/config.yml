@@ -9,6 +9,13 @@
 #    %royaleconomy_top_1_name%            -> Richest player's name
 #    %royaleconomy_top_1_balance%         -> Richest player's raw balance
 #    %royaleconomy_top_1_balance_formatted% -> Richest player's formatted balance
+#    %amount_formatted%                    → main amount (usually net, after tax)
+#    %amount_raw_formatted%                → original amount before tax (if used)
+#    %tax_formatted%                       → amount of tax taken
+#    %multiplier%                          → active boost multiplier (e.g. 2.0)
+#    %interest_formatted%                  → interest gained this tick
+#    %balance_formatted%                   → new total balance after interest
+#    %bank_name%                           → bank name
 #
 #  MESSAGE PLACEHOLDER TOKENS:
 #    %prefix%               -> Global message prefix
@@ -59,6 +66,16 @@ messages:
   negative-amount: "%prefix% &cAmount must be positive."
   target-not-found: "%prefix% &cThat player was not found."
   internal-error: "%prefix% &cAn internal error occurred. Please contact an admin."
+
+  tax-notify-payer: "%prefix% &7A tax of &c%tax_formatted% &7was taken from your payment to &e%target%&7."
+  tax-notify-receiver: "%prefix% &7You received &a%amount_formatted%&7 after &c%tax_formatted% &7tax was applied."
+
+  bank-tax-withdraw: "%prefix% &7A tax of &c%tax_formatted% &7was taken from your withdrawal from &e%bank_name%&7."
+
+  interest-player-gain: "%prefix% &aYou received &e%interest_formatted% &ain interest. New balance: &a%balance_formatted%&a."
+  interest-bank-owner-gain: "%prefix% &aYour bank &e%bank_name% &areceived &e%interest_formatted% &ain interest."
+
+  boost-notify-interest: "%prefix% &aYour boost (&ex%multiplier%&a) increased your interest by &e%bonus_formatted%&a."
 
   # Optionally center messages in chat (if you want to implement this later)
   center-messages: false
@@ -140,44 +157,56 @@ logging:
 # FEATURE: TAXES & MONEY SINKS
 ############################################################
 taxes:
-  enabled: false
+  enabled: true
 
+  # /pay tax between players
   pay:
     enabled: true
-    percent: 3.0     # 3% tax on /pay
-    min-amount: 0.01
-    send-tax-message: true
+    rate: 0.05              # 5% tax
+    sink-type: "void"       # "void" or "account"
+    sink-account-uuid: ""   # if sink-type=account, put UUID here
 
-  shop:
+    messages:
+      notify-payer: true      # show messages.tax-notify-payer
+      notify-receiver: false  # if you ever want to use messages.tax-notify-receiver
+
+  # Tax when withdrawing from banks (money → player)
+  bank-withdraw:
     enabled: false
-    percent: 2.0
+    rate: 0.02
+    sink-type: "void"
+    sink-account-uuid: ""
+    messages:
+      notify: true            # uses messages.bank-tax-withdraw
 
-  # Where does tax money go?
-  # "sink"       -> disappears from the economy
-  # "server"     -> goes to a server account UUID (below)
-  target: "sink"
-  server-account-uuid: "00000000-0000-0000-0000-000000000000"
-
-  messages:
-    tax-taken: "%prefix% &7A tax of &c%amount_formatted% &7was taken (reason: &e%reason%&7)."
+  # Tax when depositing into banks (optional)
+  bank-deposit:
+    enabled: false
+    rate: 0.01
+    sink-type: "void"
+    sink-account-uuid: ""
+    messages:
+      notify: false           # up to you if you want chat spam
 
 
 ############################################################
 # FEATURE: MULTIPLIERS / BOOSTS
 ############################################################
-multipliers:
-  enabled: false
+boosts:
+  enabled: true
 
-  world-multipliers:
-    world: 1.0
-    mines: 1.5
+  # Default multiplier if player has no boost permission
+  default-multiplier: 1.0
 
+  # Highest matching permission wins
   permission-multipliers:
-    "royaleconomy.boost.vip": 1.25
-    "royaleconomy.boost.mvp": 1.5
+    "royaleconomy.boost.2x": 2.0
+    "royaleconomy.boost.1_5x": 1.5
+    "royaleconomy.boost.1_1x": 1.1
 
   messages:
-    applied: "%prefix% &7A money boost of &e%multiplier%x &7has been applied!"
+    # Global toggle for showing boost-related info in chat
+    notify-on-interest: false  # if true, use messages.boost-notify-interest
 
 
 ############################################################
@@ -221,17 +250,25 @@ banks:
 # FEATURE: INTEREST (PASSIVE INCOME)
 ############################################################
 interest:
-  enabled: false
-  interval-minutes: 1440   # 1440 = 24h
-  player-rate-percent: 0.5 # 0.5% per interval
-  bank-rate-percent: 1.0   # 1% for banks (if using banks)
+  enabled: true
 
-  min-balance-to-earn: 0.0
-  max-interest-per-interval: -1   # -1 = no cap
+  interval-minutes: 1  # how often interest is applied
 
-  messages:
-    player-interest: "%prefix% &aYou received %amount_formatted% &ain interest."
-    bank-interest: "%prefix% &aBank '&e%bank_name%&a' received %amount_formatted% &ain interest."
+  players:
+    enabled: true
+    rate: 0.01          # 1% each interval
+    max-balance: -1     # -1 = no cap
+    messages:
+      notify: true                 # if true, send messages.interest-player-gain
+      only-online: true             # only notify online players, still pay interest to all
+
+  banks:
+    enabled: true
+    rate: 0.02          # 2% for banks
+    max-balance: -1
+    messages:
+      notify-owner: false           # if true, send messages.interest-bank-owner-gain to owner if online
+
 
 
 ############################################################
@@ -248,13 +285,3 @@ placeholderapi:
 vault:
   enabled: true
   # If true, RoyalEconomy will register as a Vault economy provider (if Vault is installed).
-
-
-############################################################
-# FEATURE: EXPORT / WEB LEADERBOARD (OPTIONAL)
-############################################################
-export:
-  enabled: false
-  interval-seconds: 60
-  file: "leaderboard.json"
-  entries: 50

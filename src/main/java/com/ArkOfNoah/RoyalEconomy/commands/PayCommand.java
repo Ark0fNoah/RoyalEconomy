@@ -140,7 +140,18 @@ public class PayCommand implements CommandExecutor {
             }
         }
 
-        economy.deposit(target.getUniqueId(), amount);
+        // Apply tax on /pay
+        double netAmount = plugin.getTaxManager().applyTax(
+                "pay",
+                amount,
+                player.getUniqueId(),
+                target.getUniqueId()
+        );
+
+        // If tax ate everything, skip deposit
+        if (netAmount > 0) {
+            economy.deposit(target.getUniqueId(), netAmount);
+        }
 
         // Messages
         String sentMsg = config.getString(
@@ -149,7 +160,7 @@ public class PayCommand implements CommandExecutor {
         );
         sentMsg = sentMsg
                 .replace("%target%", target.getName() != null ? target.getName() : target.getUniqueId().toString())
-                .replace("%amount_formatted%", economy.format(amount));
+                .replace("%amount_formatted%", economy.format(netAmount));
         player.sendMessage(color(applyPrefix(sentMsg)));
 
         if (target.isOnline()) {

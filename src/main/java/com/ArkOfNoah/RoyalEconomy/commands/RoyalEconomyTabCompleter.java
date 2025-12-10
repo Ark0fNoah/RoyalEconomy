@@ -1,6 +1,5 @@
 package com.ArkOfNoah.RoyalEconomy.commands;
 
-import com.ArkOfNoah.RoyalEconomy.core.Bank;
 import com.ArkOfNoah.RoyalEconomy.core.BankManager;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -11,7 +10,6 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class RoyalEconomyTabCompleter implements TabCompleter {
 
@@ -85,7 +83,7 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
         if (!sender.hasPermission("royaleconomy.admin")) return;
 
         if (args.length == 1) {
-            String[] subs = {"set", "give", "take"};
+            String[] subs = {"set", "give", "take", "debugtest"};
             for (String s : subs) {
                 if (s.startsWith(args[0].toLowerCase())) suggestions.add(s);
             }
@@ -149,7 +147,7 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
 
             // Commands requiring a bank name
             if (sub.matches("delete|info|deposit|withdraw")) {
-                for (Bank bank : bankManager.getAllBanks()) {
+                for (BankManager.Bank bank : bankManager.getAllBanks()) {
                     String name = bank.getName();
                     if (name.toLowerCase().startsWith(current)) suggestions.add(name);
                 }
@@ -182,7 +180,7 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
 
             // invite/remove → bank name as 3rd argument
             if (sub.equals("invite") || sub.equals("remove")) {
-                for (Bank bank : bankManager.getAllBanks()) {
+                for (BankManager.Bank bank : bankManager.getAllBanks()) {
                     String name = bank.getName();
                     if (name.toLowerCase().startsWith(current)) {
                         suggestions.add(name);
