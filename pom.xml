@@ -23,6 +23,10 @@
             <id>placeholderapi-repo</id>
             <url>https://repo.extendedclip.com/releases/</url>
         </repository>
+        <repository>
+            <id>codemc-creatorfromhell</id>
+            <url>https://repo.codemc.io/repository/creatorfromhell/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -36,6 +40,12 @@
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
             <version>2.11.6</version> <!-- or your server's PAPI version -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.milkbowl.vault</groupId>
+            <artifactId>VaultUnlockedAPI</artifactId>
+            <version>2.16</version> <!-- or the same version you used in RoyalCore -->
             <scope>provided</scope>
         </dependency>
     </dependencies>

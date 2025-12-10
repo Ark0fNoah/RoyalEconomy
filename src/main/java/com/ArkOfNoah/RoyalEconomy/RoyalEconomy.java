@@ -17,11 +17,15 @@ import com.ArkOfNoah.RoyalEconomy.commands.EcoAdminCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.BaltopCommand;
 import com.ArkOfNoah.RoyalEconomy.commands.BankCommand;
 import com.ArkOfNoah.RoyalEconomy.listeners.PlayerJoinListener;
+import com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class RoyalEconomy extends JavaPlugin {
+
+    // Vault2 provider (VaultUnlocked)
+    private net.milkbowl.vault2.economy.Economy vaultProvider;
 
     private static RoyalEconomy instance;
 
@@ -35,6 +39,29 @@ public class RoyalEconomy extends JavaPlugin {
     private TransactionLogger transactionLogger;
     private LeaderboardManager leaderboardManager;
     private BankManager bankManager;
+
+    // ─────────────────────────────────────
+    // Vault2 bridge (ONLY Vault2)
+    // ─────────────────────────────────────
+    private void setupVaultBridge() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            getLogger().info("VaultUnlocked/Vault not found. Skipping Vault2 bridge.");
+            return;
+        }
+
+        // Our Vault2 Economy implementation
+        vaultProvider = new RoyalEconomyVaultBridge(this, economyManager);
+
+        // Register as Vault2 Economy provider
+        Bukkit.getServicesManager().register(
+                net.milkbowl.vault2.economy.Economy.class,
+                vaultProvider,
+                this,
+                ServicePriority.Highest
+        );
+
+        getLogger().info("Registered RoyalEconomy as VaultUnlocked (Vault2) economy provider.");
+    }
 
     public void reloadLogger() {
         this.transactionLogger = new TransactionLogger(this);
@@ -84,17 +111,11 @@ public class RoyalEconomy extends JavaPlugin {
         // Taxes
         taxManager = new TaxManager(this, economyManager);
 
-        // Banks already exist
-        bankManager = new BankManager(this, economyManager);
-        if (getConfig().getBoolean("banks.enabled", false)) {
-            bankManager.load();
-        }
-
         // Interest
         if (getConfig().getBoolean("interest.enabled", false)) {
             int minutes = getConfig().getInt("interest.interval-minutes", 60);
             long ticks = minutes * 60L * 20L;
-            if (ticks <= 0) ticks = 20L * 60L; // fallback 1 minute so it always runs
+            if (ticks <= 0) ticks = 20L * 60L; // fallback 1 minute
 
             interestTask = new InterestTask(this, economyManager, bankManager, boostManager);
             interestTask.runTaskTimer(this, ticks, ticks);
@@ -104,6 +125,9 @@ public class RoyalEconomy extends JavaPlugin {
         registerService();
         registerCommands();
         registerListeners();
+
+        // Vault2 bridge
+        setupVaultBridge();
 
         // PlaceholderAPI expansion
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
@@ -173,6 +197,7 @@ public class RoyalEconomy extends JavaPlugin {
     }
 
     private void registerService() {
+        // Register your own Economy API as a Bukkit service
         Bukkit.getServicesManager().register(
                 Economy.class,
                 economyManager,

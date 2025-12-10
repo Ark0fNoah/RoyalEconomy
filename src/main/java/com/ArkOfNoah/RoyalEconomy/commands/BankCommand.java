@@ -178,6 +178,7 @@ public class BankCommand implements CommandExecutor {
             player.sendMessage(color(applyPrefix("&cUsage: /bank info <name>")));
             return;
         }
+
         String name = args[1];
         BankManager.Bank bank = bankManager.getBank(name);
         if (bank == null) {
@@ -203,6 +204,15 @@ public class BankCommand implements CommandExecutor {
         balanceLine = balanceLine.replace("%balance_formatted%",
                 plugin.getEconomy().format(bank.getBalance()));
         player.sendMessage(color(balanceLine));
+
+        double rate = config.getDouble("interest.banks.rate", 0.0);
+        java.util.Locale locale = java.util.Locale.US;
+        String rateStr = String.format(locale, "%.2f%%", rate * 100.0);
+
+        String rateLine = config.getString("banks.messages.info-line-rate",
+                "&7Interest rate: &e%rate%");
+        rateLine = rateLine.replace("%rate%", rateStr);
+        player.sendMessage(color(rateLine));
 
         int memberCount = bank.getMembers().size();
         int maxMembers = bank.getMaxMembers();

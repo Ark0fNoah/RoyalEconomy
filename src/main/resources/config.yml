@@ -75,6 +75,12 @@ messages:
   interest-player-gain: "%prefix% &aYou received &e%interest_formatted% &ain interest. New balance: &a%balance_formatted%&a."
   interest-bank-owner-gain: "%prefix% &aYour bank &e%bank_name% &areceived &e%interest_formatted% &ain interest."
 
+  boost-applied: "%prefix% &aApplied a &ex%multiplier% &aboost to &e%player% &afor &e%duration%&a."
+  boost-info: "%prefix% &e%player%&7's effective multiplier: &ex%multiplier%&7. &7Remaining boost: &e%remaining%&7."
+  boost-none: "%prefix% &e%player% &7has no active temporary boost."
+
+  info-line-rate: "&7Bank interest rate: &e%rate%"
+
   boost-notify-interest: "%prefix% &aYour boost (&ex%multiplier%&a) increased your interest by &e%bonus_formatted%&a."
 
   # Optionally center messages in chat (if you want to implement this later)
@@ -252,7 +258,7 @@ banks:
 interest:
   enabled: true
 
-  interval-minutes: 1  # how often interest is applied
+  interval-minutes: 60  # how often interest is applied
 
   players:
     enabled: true

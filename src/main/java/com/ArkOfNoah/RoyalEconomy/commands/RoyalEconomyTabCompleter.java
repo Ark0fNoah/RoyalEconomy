@@ -27,12 +27,11 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
         List<String> suggestions = new ArrayList<>();
 
         switch (command) {
-
             case "royaleconomy" -> handleMainCommand(sender, args, suggestions);
-            case "pay" -> handlePay(sender, args, suggestions);
-            case "eco" -> handleEco(sender, args, suggestions);
-            case "baltop" -> handleBaltop(sender, args, suggestions);
-            case "bank" -> handleBank(sender, args, suggestions);
+            case "pay"          -> handlePay(sender, args, suggestions);
+            case "eco"          -> handleEco(sender, args, suggestions);
+            case "baltop"       -> handleBaltop(sender, args, suggestions);
+            case "bank"         -> handleBank(sender, args, suggestions);
         }
 
         return suggestions;
@@ -77,31 +76,68 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
     }
 
     // ─────────────────────────────────────────
-    // /eco <set|give|take> <player> <amount>
+    // /eco <set|give|take|boost|debugtest> ...
     // ─────────────────────────────────────────
     private void handleEco(CommandSender sender, String[] args, List<String> suggestions) {
         if (!sender.hasPermission("royaleconomy.admin")) return;
 
+        // /eco <sub>
         if (args.length == 1) {
-            String[] subs = {"set", "give", "take", "debugtest"};
+            String current = args[0].toLowerCase();
+            String[] subs = {"set", "give", "take", "boost", "debugtest"};
             for (String s : subs) {
-                if (s.startsWith(args[0].toLowerCase())) suggestions.add(s);
+                if (s.startsWith(current)) suggestions.add(s);
             }
+            return;
         }
 
+        // /eco <sub> <player>
         if (args.length == 2) {
+            String sub0 = args[0].toLowerCase();
             String current = args[1].toLowerCase();
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getName().toLowerCase().startsWith(current)) {
-                    suggestions.add(p.getName());
+
+            // For boost, set, give, take → suggest player names
+            if (sub0.equals("boost") || sub0.equals("set")
+                    || sub0.equals("give") || sub0.equals("take")) {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase().startsWith(current)) {
+                        suggestions.add(p.getName());
+                    }
                 }
             }
+            return;
         }
 
+        // /eco boost <player> <multiplier>
+        if (args.length == 3 && args[0].equalsIgnoreCase("boost")) {
+            String current = args[2].toLowerCase();
+            String[] opts = {"1.5x", "2x", "3x"};
+            for (String s : opts) {
+                if (s.toLowerCase().startsWith(current)) suggestions.add(s);
+            }
+            return;
+        }
+
+        // /eco boost <player> <multiplier> <duration>
+        if (args.length == 4 && args[0].equalsIgnoreCase("boost")) {
+            String current = args[3].toLowerCase();
+            String[] opts = {"30m", "1h", "2h", "24h", "7d"};
+            for (String s : opts) {
+                if (s.toLowerCase().startsWith(current)) suggestions.add(s);
+            }
+            return;
+        }
+
+        // /eco <set|give|take> <player> <amount>
         if (args.length == 3) {
-            String[] nums = {"0", "10", "50", "100", "1000"};
-            for (String n : nums) {
-                if (n.startsWith(args[2].toLowerCase())) suggestions.add(n);
+            String sub0 = args[0].toLowerCase();
+            String current = args[2].toLowerCase();
+
+            if (sub0.equals("set") || sub0.equals("give") || sub0.equals("take")) {
+                String[] nums = {"10", "50", "100", "250", "500", "1000"};
+                for (String n : nums) {
+                    if (n.startsWith(current)) suggestions.add(n);
+                }
             }
         }
     }

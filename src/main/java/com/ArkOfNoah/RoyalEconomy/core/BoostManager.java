@@ -15,6 +15,13 @@ public class BoostManager {
     private final double defaultMultiplier;
     private final Map<String, Double> permissionMultipliers = new HashMap<>();
 
+    private static class TempBoost {
+        double multiplier;
+        long expiresAt; // epoch millis
+    }
+
+    private final Map<UUID, TempBoost> tempBoosts = new HashMap<>();
+
     public BoostManager(RoyalEconomy plugin) {
         this.plugin = plugin;
 
@@ -30,48 +37,80 @@ public class BoostManager {
         }
     }
 
-    public double getMultiplier(UUID uuid) {
-        if (!plugin.getConfig().getBoolean("boosts.enabled", false)) {
-            return 1.0;
-        }
-
-        OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
-        if (!op.isOnline()) {
-            return defaultMultiplier;
-        }
-
+    public synchronized double getMultiplier(UUID uuid) {
         double best = defaultMultiplier;
 
-        for (Map.Entry<String, Double> entry : permissionMultipliers.entrySet()) {
-            String perm = entry.getKey();
-            double mult = entry.getValue();
-            if (op.getPlayer().hasPermission(perm)) {
-                if (mult > best) best = mult;
+        if (plugin.getConfig().getBoolean("boosts.enabled", false)) {
+            OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
+            if (op.isOnline() && op.getPlayer() != null) {
+                for (Map.Entry<String, Double> entry : permissionMultipliers.entrySet()) {
+                    String perm = entry.getKey();
+                    double mult = entry.getValue();
+                    if (op.getPlayer().hasPermission(perm)) {
+                        if (mult > best) best = mult;
+                    }
+                }
+            }
+        }
+
+        // Temporary boost
+        TempBoost tb = tempBoosts.get(uuid);
+        long now = System.currentTimeMillis();
+        if (tb != null) {
+            if (tb.expiresAt <= now) {
+                tempBoosts.remove(uuid);
+            } else if (tb.multiplier > best) {
+                best = tb.multiplier;
             }
         }
 
         return best;
     }
 
-    /**
-     * Returns boosted amount; also logs if multiplier != 1.
-     */
     public double applyBoost(UUID uuid, double baseAmount, String reason) {
         double mult = getMultiplier(uuid);
-        if (mult <= 0) mult = 1.0; // safety
+        if (mult <= 0) mult = 1.0;
         double boosted = baseAmount * mult;
 
         if (mult != 1.0) {
+            double bonus = boosted - baseAmount;
             String name = Bukkit.getOfflinePlayer(uuid).getName();
             plugin.getTransactionLogger().log(
                     "BOOST",
                     name,
-                    boosted - baseAmount,
+                    bonus,
                     "BOOST_" + reason,
                     true
             );
         }
 
         return boosted;
+    }
+
+    // ─────────────────────────────────────────
+    //  Temporary boosts
+    // ─────────────────────────────────────────
+    public synchronized void setTemporaryBoost(UUID uuid, double multiplier, long durationMillis) {
+        TempBoost tb = new TempBoost();
+        tb.multiplier = multiplier;
+        tb.expiresAt = System.currentTimeMillis() + durationMillis;
+        tempBoosts.put(uuid, tb);
+    }
+
+    public synchronized void clearTemporaryBoost(UUID uuid) {
+        tempBoosts.remove(uuid);
+    }
+
+    /**
+     * @return remaining millis of temp boost, or 0 if none/expired
+     */
+    public synchronized long getRemainingMillis(UUID uuid) {
+        TempBoost tb = tempBoosts.get(uuid);
+        long now = System.currentTimeMillis();
+        if (tb == null || tb.expiresAt <= now) {
+            tempBoosts.remove(uuid);
+            return 0L;
+        }
+        return tb.expiresAt - now;
     }
 }

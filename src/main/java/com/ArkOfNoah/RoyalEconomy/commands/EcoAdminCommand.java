@@ -9,6 +9,8 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.UUID;
+
 public class EcoAdminCommand implements CommandExecutor {
 
     private final RoyalEconomy plugin;
@@ -21,6 +23,83 @@ public class EcoAdminCommand implements CommandExecutor {
         this.config = plugin.getConfig();
     }
 
+    // ─────────────────────────────────────────
+    // /eco boost ...
+    // ─────────────────────────────────────────
+    private void handleBoost(CommandSender sender, String[] args) {
+        if (args.length == 2) {
+            // /eco boost <player>  (preview)
+            String targetName = args[1];
+            OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+            UUID uuid = target.getUniqueId();
+
+            double effective = plugin.getBoostManager().getMultiplier(uuid);
+            long remainingMs = plugin.getBoostManager().getRemainingMillis(uuid);
+
+            String remainingStr;
+            if (remainingMs <= 0) {
+                remainingStr = "none";
+            } else {
+                remainingStr = formatDuration(remainingMs);
+            }
+
+            String msgKey = (remainingMs <= 0 ? "messages.boost-none" : "messages.boost-info");
+            String msg = config.getString(msgKey,
+                    "%prefix% &e%player%&7's effective multiplier: &ex%multiplier%&7. Remaining boost: &e%remaining%&7.");
+
+            msg = msg
+                    .replace("%player%", targetName)
+                    .replace("%multiplier%", String.format(java.util.Locale.US, "%.2f", effective))
+                    .replace("%remaining%", remainingStr);
+
+            sender.sendMessage(color(applyPrefix(msg)));
+            return;
+        }
+
+        if (args.length == 4) {
+            // /eco boost <player> <multiplier> <duration>
+            String targetName = args[1];
+            OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+            UUID uuid = target.getUniqueId();
+
+            String multRaw = args[2];
+            double mult = parseMultiplier(multRaw);
+            if (mult <= 0) {
+                sender.sendMessage(color(applyPrefix("&cInvalid multiplier. Use e.g. 2x or 1.5")));
+                return;
+            }
+
+            String durationRaw = args[3];
+            long millis = parseDuration(durationRaw);
+            if (millis <= 0) {
+                sender.sendMessage(color(applyPrefix("&cInvalid duration. Use e.g. 30m, 2h, 1d")));
+                return;
+            }
+
+            plugin.getBoostManager().setTemporaryBoost(uuid, mult, millis);
+
+            String durationStr = formatDuration(millis);
+
+            String msg = config.getString("messages.boost-applied",
+                    "%prefix% &aApplied a &ex%multiplier% &aboost to &e%player% &afor &e%duration%&a.");
+            msg = msg
+                    .replace("%player%", targetName)
+                    .replace("%multiplier%", String.format(java.util.Locale.US, "%.2f", mult))
+                    .replace("%duration%", durationStr);
+
+            sender.sendMessage(color(applyPrefix(msg)));
+            return;
+        }
+
+        // usage
+        sender.sendMessage(color(applyPrefix("&cUsage: /eco boost <player>")));
+        sender.sendMessage(color(applyPrefix("&cUsage: /eco boost <player> <multiplier> <duration>")));
+        sender.sendMessage(color(applyPrefix("&7Example: /eco boost Steve 2x 24h")));
+    }
+
+    // ─────────────────────────────────────────
+    // Command entry point
+    // ─────────────────────────────────────────
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
 
@@ -29,6 +108,12 @@ public class EcoAdminCommand implements CommandExecutor {
                     "messages.no-permission",
                     "%prefix% &cYou don't have permission to do that."
             ))));
+            return true;
+        }
+
+        // /eco boost ...
+        if (args.length >= 1 && args[0].equalsIgnoreCase("boost")) {
+            handleBoost(sender, args);
             return true;
         }
 
@@ -213,9 +298,68 @@ public class EcoAdminCommand implements CommandExecutor {
         }
     }
 
+    // ─────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────
     private String getPrefix() {
         if (!config.getBoolean("messages.use-prefix", true)) return "";
         return config.getString("messages.prefix", "&8[&6RoyalEconomy&8]&r ");
+    }
+
+    private double parseMultiplier(String raw) {
+        raw = raw.toLowerCase().trim();
+        if (raw.endsWith("x")) {
+            raw = raw.substring(0, raw.length() - 1);
+        }
+        try {
+            return Double.parseDouble(raw);
+        } catch (NumberFormatException e) {
+            return -1.0; // invalid
+        }
+    }
+
+    private long parseDuration(String raw) {
+        raw = raw.toLowerCase().trim();
+        if (raw.length() < 2) return -1L;
+
+        char unit = raw.charAt(raw.length() - 1);
+        String numPart = raw.substring(0, raw.length() - 1);
+
+        long base;
+        try {
+            base = Long.parseLong(numPart);
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
+
+        long millis;
+        switch (unit) {
+            case 's' -> millis = base * 1000L;
+            case 'm' -> millis = base * 60_000L;
+            case 'h' -> millis = base * 60L * 60_000L;
+            case 'd' -> millis = base * 24L * 60L * 60_000L;
+            default -> {
+                return -1L;
+            }
+        }
+        return millis;
+    }
+
+    private String formatDuration(long millis) {
+        long totalSeconds = millis / 1000L;
+        long days = totalSeconds / (24 * 3600);
+        long hours = (totalSeconds % (24 * 3600)) / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) sb.append(days).append("d ");
+        if (hours > 0) sb.append(hours).append("h ");
+        if (minutes > 0) sb.append(minutes).append("m ");
+        if (seconds > 0 && sb.length() == 0) sb.append(seconds).append("s");
+
+        String out = sb.toString().trim();
+        return out.isEmpty() ? "0s" : out;
     }
 
     private String applyPrefix(String msg) {

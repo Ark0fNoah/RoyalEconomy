@@ -11,6 +11,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
+
 
 public class RoyalEconomyExpansion extends PlaceholderExpansion {
 
@@ -59,6 +61,8 @@ public class RoyalEconomyExpansion extends PlaceholderExpansion {
      * %royaleconomy_balance_formatted%
      * %royaleconomy_top_1_name%
      * %royaleconomy_top_1_balance%
+     * %royaleconomy_interest_rate%
+     * %royaleconomy_tax_pay%
      */
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String identifier) {
@@ -79,6 +83,19 @@ public class RoyalEconomyExpansion extends PlaceholderExpansion {
             if (player == null) return "";
             double balance = economy.getBalance(player.getUniqueId());
             return economy.format(balance);
+        }
+
+        // ---- Global config-based placeholders ----
+        if (identifier.equalsIgnoreCase("interest_rate")) {
+            double rate = plugin.getConfig().getDouble("interest.players.rate", 0.0);
+            double perc = rate * 100.0;
+            return String.format(Locale.US, "%.2f%%", perc);
+        }
+
+        if (identifier.equalsIgnoreCase("tax_pay")) {
+            double rate = plugin.getConfig().getDouble("taxes.pay.rate", 0.0);
+            double perc = rate * 100.0;
+            return String.format(Locale.US, "%.2f%%", perc);
         }
 
         // ---- Top-list placeholders ----
