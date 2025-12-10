@@ -1,20 +1,260 @@
-# RoyalEconomy Configuration
+# ==========================================================
+#  RoyalEconomy - Main Configuration
+#  Project: com.ArkOfNoah.RoyalEconomy
+# ==========================================================
 #
-  # Placeholders you can use in chat formats:
-  #   %royaleconomy_balance%
-  #   %royaleconomy_balance_formatted%
-  #   %royaleconomy_top_1_name%
-  #   %royaleconomy_top_1_balance%
+#  PLACEHOLDERS (PlaceholderAPI):
+#    %royaleconomy_balance%               -> Raw balance of the player
+#    %royaleconomy_balance_formatted%     -> Formatted balance (with currency)
+#    %royaleconomy_top_1_name%            -> Richest player's name
+#    %royaleconomy_top_1_balance%         -> Richest player's raw balance
+#    %royaleconomy_top_1_balance_formatted% -> Richest player's formatted balance
+#
+#  MESSAGE PLACEHOLDER TOKENS:
+#    %prefix%               -> Global message prefix
+#    %player%               -> Player name
+#    %target%               -> Target player name
+#    %amount%               -> Raw amount
+#    %amount_formatted%     -> Formatted amount
+#    %balance%              -> Raw balance
+#    %balance_formatted%    -> Formatted balance
+#    %position%             -> Rank position (baltop)
+#    %rank%                 -> Player rank in baltop
+#    %page%                 -> Current page (baltop)
+#    %pages%                -> Total pages (baltop)
+#
+#  PERMISSIONS:
+#    royaleconomy.admin               -> Access to /eco and admin features
+#    royaleconomy.balance.others      -> View other players' balances (if enabled)
+#    royaleconomy.pay                 -> Use /pay
+#    royaleconomy.baltop              -> Use /baltop
+#    royaleconomy.bypass.maxbalance   -> Bypass max balance limit
+#    royaleconomy.boost.<name>        -> Custom multipliers (if multipliers enabled)
+#    royaleconomy.bank.use            -> Use bank system (if enabled)
+#    royaleconomy.bank.admin          -> Admin bank controls (if enabled)
+#
+# ==========================================================
 
-softdepend: [PlaceholderAPI]
 
-currency:
-  singular: coin
-  plural: coins
-  symbol: "⛁"
-  format: "#,##0.00"
-  prefix: ""
-  suffix: " coins"
+############################################################
+# GENERAL
+############################################################
+general:
+  language: "en"
+  debug: false
 
-starting-balance: 100.0
-max-balance: 1000000000.0
+
+############################################################
+# MESSAGES / PREFIX
+############################################################
+messages:
+  use-prefix: true
+  prefix: "&7[&9Royal&fEconomy&7]&r "
+
+  # Generic / shared messages
+  no-permission: "%prefix% &cYou don't have permission to do that."
+  player-only: "%prefix% &cOnly players can use this command."
+  unknown-command: "%prefix% &cUnknown subcommand."
+  invalid-amount: "%prefix% &cThat is not a valid amount."
+  negative-amount: "%prefix% &cAmount must be positive."
+  target-not-found: "%prefix% &cThat player was not found."
+  internal-error: "%prefix% &cAn internal error occurred. Please contact an admin."
+
+  # Optionally center messages in chat (if you want to implement this later)
+  center-messages: false
+
+
+############################################################
+# CORE ECONOMY (no enable flag, always on)
+############################################################
+core:
+  starting-balance: 100.0
+  max-balance: 1000000000.0  # Set to -1 to disable max cap
+
+  currency:
+    singular: "coin"
+    plural: "coins"
+    symbol: "⛁"
+    format: "#,##0.00"
+    prefix: ""          # e.g. "⛁ "
+    suffix: " coins"    # e.g. " coins"
+
+  commands:
+    balance:
+      aliases: ["bal", "money"]
+      allow-others: true
+    pay:
+      enabled: true
+      min-amount: 0.01
+      max-amount: -1        # -1 = no specific pay limit
+      require-online-target: false
+
+  core-messages:
+    balance-self: "%prefix% &aYour balance: &e%balance_formatted%"
+    balance-others: "%prefix% &a%target%&7's balance: &e%balance_formatted%"
+    pay-usage: "%prefix% &cUsage: /pay <player> <amount>"
+    pay-sent: "%prefix% &aYou paid &e%target% %amount_formatted%&a."
+    pay-received: "%prefix% &aYou received %amount_formatted% &afrom &e%player%&a."
+    insufficient-funds: "%prefix% &cYou don't have enough money."
+    max-balance-reached: "%prefix% &cYou cannot receive more money (max balance reached)."
+
+
+############################################################
+# FEATURE: BALTOP / LEADERBOARD
+############################################################
+baltop:
+  enabled: true
+
+  command:
+    name: "baltop"
+    aliases: ["balancetop", "rich"]
+
+  page-size: 10
+  cache-seconds: 30
+  show-self-rank: true
+
+  messages:
+    header: "%prefix% &6Top &e%page_size% &6balances (&ePage %page%/%pages%&6)"
+    entry: "&7%position%. &e%player% &7- &a%balance_formatted%"
+    self-rank: "%prefix% &7You are &e#%rank% &7with &a%balance_formatted%"
+    no-data: "%prefix% &7No balance data available yet."
+
+
+############################################################
+# FEATURE: LOGGING / TRANSACTIONS
+############################################################
+logging:
+  enabled: true
+  log-to-file: true
+  log-to-console: false
+
+  # Folder: /plugins/RoyalEconomy/logs/
+  # File:   YYYY-MM-DD.log
+  format: "[%time%] %type% | %player% -> %target% | %amount% | %reason%"
+
+  # Possible %type%: SUCCESS, FAIL
+  # Possible %reason%: PAY, COMMAND_SET, COMMAND_GIVE, COMMAND_TAKE, SHOP, SYSTEM, OTHER
+
+
+############################################################
+# FEATURE: TAXES & MONEY SINKS
+############################################################
+taxes:
+  enabled: false
+
+  pay:
+    enabled: true
+    percent: 3.0     # 3% tax on /pay
+    min-amount: 0.01
+    send-tax-message: true
+
+  shop:
+    enabled: false
+    percent: 2.0
+
+  # Where does tax money go?
+  # "sink"       -> disappears from the economy
+  # "server"     -> goes to a server account UUID (below)
+  target: "sink"
+  server-account-uuid: "00000000-0000-0000-0000-000000000000"
+
+  messages:
+    tax-taken: "%prefix% &7A tax of &c%amount_formatted% &7was taken (reason: &e%reason%&7)."
+
+
+############################################################
+# FEATURE: MULTIPLIERS / BOOSTS
+############################################################
+multipliers:
+  enabled: false
+
+  world-multipliers:
+    world: 1.0
+    mines: 1.5
+
+  permission-multipliers:
+    "royaleconomy.boost.vip": 1.25
+    "royaleconomy.boost.mvp": 1.5
+
+  messages:
+    applied: "%prefix% &7A money boost of &e%multiplier%x &7has been applied!"
+
+
+############################################################
+# FEATURE: BANKS / SHARED ACCOUNTS
+############################################################
+banks:
+  enabled: true
+
+  max-banks-per-player: 3
+  default-max-members: 10
+  starting-bank-balance: 0.0
+  allow-negative: false
+
+  commands:
+    base: "bank"
+    aliases: ["banks"]
+
+  messages:
+    help-header: "%prefix% &6Bank commands:"
+    created: "%prefix% &aBank '&e%bank_name%&a' created."
+    deleted: "%prefix% &cBank '&e%bank_name%&c' deleted."
+    deposit: "%prefix% &aDeposited %amount_formatted% &ainto '&e%bank_name%&a'."
+    withdraw: "%prefix% &aWithdrew %amount_formatted% &afrom '&e%bank_name%&a'."
+    insufficient-funds: "%prefix% &cThe bank does not have enough money."
+    no-access: "%prefix% &cYou don't have access to that bank."
+    max-banks-reached: "%prefix% &cYou have reached the maximum number of banks."
+    member-added: "%prefix% &a%target% added to bank '&e%bank_name%&a'."
+    member-removed: "%prefix% &c%target% removed from bank '&e%bank_name%&c'."
+    bank-not-found: "%prefix% &cThat bank doesn't exist."
+    already-member: "%prefix% &cThat player is already a member of that bank."
+    not-member: "%prefix% &cThat player is not a member of that bank."
+    info-header: "%prefix% &6Bank '&e%bank_name%&6' info:"
+    info-line-owner: "&7Owner: &e%owner%"
+    info-line-balance: "&7Balance: &a%balance_formatted%"
+    info-line-members: "&7Members (&e%member_count%&7/&e%max_members%&7): &f%members%"
+    list-header: "%prefix% &6Your banks:"
+    list-entry: "&7- &e%bank_name% &7(&a%balance_formatted%&7)"
+
+
+############################################################
+# FEATURE: INTEREST (PASSIVE INCOME)
+############################################################
+interest:
+  enabled: false
+  interval-minutes: 1440   # 1440 = 24h
+  player-rate-percent: 0.5 # 0.5% per interval
+  bank-rate-percent: 1.0   # 1% for banks (if using banks)
+
+  min-balance-to-earn: 0.0
+  max-interest-per-interval: -1   # -1 = no cap
+
+  messages:
+    player-interest: "%prefix% &aYou received %amount_formatted% &ain interest."
+    bank-interest: "%prefix% &aBank '&e%bank_name%&a' received %amount_formatted% &ain interest."
+
+
+############################################################
+# FEATURE: PLACEHOLDERAPI INTEGRATION
+############################################################
+placeholderapi:
+  enabled: true
+  # If false, the expansion won't auto-register even if PlaceholderAPI is installed.
+
+
+############################################################
+# FEATURE: VAULT ECONOMY BRIDGE
+############################################################
+vault:
+  enabled: true
+  # If true, RoyalEconomy will register as a Vault economy provider (if Vault is installed).
+
+
+############################################################
+# FEATURE: EXPORT / WEB LEADERBOARD (OPTIONAL)
+############################################################
+export:
+  enabled: false
+  interval-seconds: 60
+  file: "leaderboard.json"
+  entries: 50

@@ -1,14 +1,13 @@
 name: RoyalEconomy
-main: com.yourname.royaleconomy.RoyalEconomyPlugin
+main: com.ArkOfNoah.RoyalEconomy.RoyalEconomy
 version: 1.0.0
 api-version: 1.20
 author: YourName
-depend: [RoyalCore]  # Ensures RoyalCore loads first
+softdepend: [PlaceholderAPI]
 commands:
   balance:
     description: Show your balance
     aliases: [bal, money]
-    usage: /balance
   pay:
     description: Pay another player
     usage: /pay <player> <amount>
@@ -16,6 +15,27 @@ commands:
     description: Admin economy commands
     usage: /eco <set|give|take> <player> <amount>
     permission: royaleconomy.admin
+  baltop:
+    description: Show top balances
+    usage: /baltop [page]
+  bank:
+    description: Bank commands
+    usage: /bank help
+  royaleconomy:
+    description: RoyalEconomy main command
+    usage: /royaleconomy reload
+    permission: royaleconomy.reload
+
 permissions:
   royaleconomy.admin:
+    default: op
+  royaleconomy.pay:
+    default: true
+  royaleconomy.baltop:
+    default: true
+  royaleconomy.bank.use:
+    default: true
+  royaleconomy.bank.admin:
+    default: op
+  royaleconomy.reload:
     default: op
