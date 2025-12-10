@@ -1,0 +1,21 @@
+name: RoyalEconomy
+main: com.yourname.royaleconomy.RoyalEconomyPlugin
+version: 1.0.0
+api-version: 1.20
+author: YourName
+depend: [RoyalCore]  # Ensures RoyalCore loads first
+commands:
+  balance:
+    description: Show your balance
+    aliases: [bal, money]
+    usage: /balance
+  pay:
+    description: Pay another player
+    usage: /pay <player> <amount>
+  eco:
+    description: Admin economy commands
+    usage: /eco <set|give|take> <player> <amount>
+    permission: royaleconomy.admin
+permissions:
+  royaleconomy.admin:
+    default: op
