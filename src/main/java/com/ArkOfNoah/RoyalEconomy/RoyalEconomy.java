@@ -16,7 +16,7 @@ public class RoyalEconomy extends JavaPlugin {
     private static RoyalEconomy instance;
 
     // Managers
-    private MessageManager messageManager; // NEW
+    private MessageManager messageManager;
     private EconomyManager economyManager;
     private StorageHandler storageHandler;
     private TransactionLogger transactionLogger;
@@ -48,11 +48,17 @@ public class RoyalEconomy extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Save everything synchronously to ensure it completes before shutdown
         if (storageHandler != null && economyManager != null) {
-            storageHandler.save(economyManager.getAllAccounts());
+            // false = SYNC save
+            storageHandler.save(economyManager.getAllAccounts(), false);
         }
 
-        if (bankManager != null && isBankEnabled()) bankManager.save();
+        if (bankManager != null && isBankEnabled()) {
+            // false = SYNC save
+            bankManager.save(false);
+        }
+
         if (interestTask != null) interestTask.cancel();
 
         getLogger().info("RoyalEconomy disabled.");
@@ -71,7 +77,8 @@ public class RoyalEconomy extends JavaPlugin {
         taxManager = new TaxManager(this, economyManager);
 
         int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
+        // Correct Constructor (3 args)
+        leaderboardManager = new LeaderboardManager(this, economyManager, cacheSeconds);
 
         bankManager = new BankManager(this, economyManager);
         if (isBankEnabled()) {
@@ -83,10 +90,16 @@ public class RoyalEconomy extends JavaPlugin {
         reloadConfig();
         messageManager.load(); // Reload messages
 
+        if (economyManager != null) {
+            economyManager.reloadCurrencyConfig();
+        }
+
         transactionLogger = new TransactionLogger(this);
 
         int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
+
+        // FIX: Added 'this' as the first argument to match the new constructor
+        leaderboardManager = new LeaderboardManager(this, economyManager, cacheSeconds);
 
         if (isBankEnabled()) bankManager.load();
         startInterestTask();

@@ -50,56 +50,6 @@ general:
   language: "en"
   debug: false
 
-
-############################################################
-# MESSAGES / PREFIX
-############################################################
-messages:
-  prefix: "&7[&9R&fE&7] "
-
-  # The "Theme" of your plugin
-  theme:
-    # Standard text color (Gray)
-    primary: "&7"
-    # Highlighted values like numbers or player names (White or Aqua)
-    highlight: "&f"
-    # Error messages (Red)
-    error: "&c"
-    # Success messages (Green)
-    success: "&a"
-    # Usage messages
-    usage-label: "&9"   # The word "Usage:"
-    usage-text: "&b"    # The actual command "/eco give..."
-
-  # Generic / shared messages
-  no-permission: "%prefix% &cYou don't have permission to do that."
-  player-only: "%prefix% &cOnly players can use this command."
-  unknown-command: "%prefix% &cUnknown subcommand."
-  invalid-amount: "%prefix% &cThat is not a valid amount."
-  negative-amount: "%prefix% &cAmount must be positive."
-  target-not-found: "%prefix% &cThat player was not found."
-  internal-error: "%prefix% &cAn internal error occurred. Please contact an admin."
-
-  tax-notify-payer: "%prefix% &7A tax of &c%tax_formatted% &7was taken from your payment to &e%target%&7."
-  tax-notify-receiver: "%prefix% &7You received &a%amount_formatted%&7 after &c%tax_formatted% &7tax was applied."
-
-  bank-tax-withdraw: "%prefix% &7A tax of &c%tax_formatted% &7was taken from your withdrawal from &e%bank_name%&7."
-
-  interest-player-gain: "%prefix% &aYou received &e%interest_formatted% &ain interest. New balance: &a%balance_formatted%&a."
-  interest-bank-owner-gain: "%prefix% &aYour bank &e%bank_name% &areceived &e%interest_formatted% &ain interest."
-
-  boost-applied: "%prefix% &aApplied a &ex%multiplier% &aboost to &e%player% &afor &e%duration%&a."
-  boost-info: "%prefix% &e%player%&7's effective multiplier: &ex%multiplier%&7. &7Remaining boost: &e%remaining%&7."
-  boost-none: "%prefix% &e%player% &7has no active temporary boost."
-
-  info-line-rate: "&7Bank interest rate: &e%rate%"
-
-  boost-notify-interest: "%prefix% &aYour boost (&ex%multiplier%&a) increased your interest by &e%bonus_formatted%&a."
-
-  # Optionally center messages in chat (if you want to implement this later)
-  center-messages: false
-
-
 ############################################################
 # CORE ECONOMY (no enable flag, always on)
 ############################################################

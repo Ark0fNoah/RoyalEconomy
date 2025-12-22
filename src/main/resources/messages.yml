@@ -1,7 +1,7 @@
 # RoyalEconomy Messages
 # Placeholders available globally: %prefix%
 
-prefix: "&7[&0R&fE&7] "
+prefix: "&7[&9R&fE&7] "
 
 general:
   no-permission: "&cYou do not have permission to execute this command."

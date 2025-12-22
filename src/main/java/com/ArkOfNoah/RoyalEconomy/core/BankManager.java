@@ -1,13 +1,17 @@
 package com.ArkOfNoah.RoyalEconomy.core;
 
 import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -15,8 +19,10 @@ public class BankManager {
 
     private final RoyalEconomy plugin;
     private final EconomyManager economyManager;
+
     private final Map<UUID, Double> bankBalances = new HashMap<>();
     private final Map<UUID, Integer> bankLevels = new HashMap<>();
+
     private File bankFile;
     private YamlConfiguration bankConfig;
 
@@ -28,7 +34,6 @@ public class BankManager {
     public void load() {
         bankFile = new File(plugin.getDataFolder(), "banks.yml");
 
-        // FIX: Create an empty file instead of trying to copy one from the JAR
         if (!bankFile.exists()) {
             try {
                 bankFile.getParentFile().mkdirs();
@@ -40,7 +45,6 @@ public class BankManager {
         }
 
         bankConfig = YamlConfiguration.loadConfiguration(bankFile);
-
         bankBalances.clear();
         bankLevels.clear();
 
@@ -58,37 +62,65 @@ public class BankManager {
         }
     }
 
+    /**
+     * Default save (Async)
+     */
     public void save() {
-        if (bankConfig == null || bankFile == null) return;
+        save(true);
+    }
 
-        for (Map.Entry<UUID, Double> entry : bankBalances.entrySet()) {
-            String path = "accounts." + entry.getKey().toString();
-            bankConfig.set(path + ".balance", entry.getValue());
-            bankConfig.set(path + ".level", bankLevels.getOrDefault(entry.getKey(), 1));
-        }
+    /**
+     * Flexible Save Method
+     */
+    public void save(boolean async) {
+        if (bankFile == null) return;
 
-        try {
-            bankConfig.save(bankFile);
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Could not save banks.yml!", e);
+        Map<UUID, Double> balSnapshot = new HashMap<>(bankBalances);
+        Map<UUID, Integer> lvlSnapshot = new HashMap<>(bankLevels);
+
+        Runnable saveTask = () -> {
+            YamlConfiguration tmpConfig = new YamlConfiguration();
+
+            for (Map.Entry<UUID, Double> entry : balSnapshot.entrySet()) {
+                String uuid = entry.getKey().toString();
+                tmpConfig.set("accounts." + uuid + ".balance", entry.getValue());
+                tmpConfig.set("accounts." + uuid + ".level", lvlSnapshot.getOrDefault(entry.getKey(), 1));
+            }
+
+            File tmpFile = new File(plugin.getDataFolder(), "banks.yml.tmp");
+
+            try {
+                tmpConfig.save(tmpFile);
+                Files.move(tmpFile.toPath(), bankFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Could not save banks.yml!", e);
+            }
+        };
+
+        if (async) {
+            try {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, saveTask);
+            } catch (Exception e) {
+                saveTask.run();
+            }
+        } else {
+            saveTask.run();
         }
     }
 
-    // --- API Methods Used by Commands ---
+    // --- API Methods ---
+    // (Keep your existing API methods below: hasBankAccount, createBankAccount, etc.)
+    // Only showing methods that call save() to ensure they are updated
 
     public boolean hasBankAccount(UUID uuid) {
         return bankBalances.containsKey(uuid);
-    }
-
-    public java.util.Set<UUID> getBankOwners() {
-        return bankBalances.keySet();
     }
 
     public void createBankAccount(UUID uuid) {
         if (!hasBankAccount(uuid)) {
             bankBalances.put(uuid, 0.0);
             bankLevels.put(uuid, 1);
-            save(); // Save immediately to prevent data loss
+            save(true); // Routine save can be async
         }
     }
 
@@ -100,20 +132,21 @@ public class BankManager {
         return bankLevels.getOrDefault(uuid, 1);
     }
 
+    public Set<UUID> getBankOwners() {
+        return bankBalances.keySet();
+    }
+
     public boolean deposit(UUID uuid, double amount) {
         if (!hasBankAccount(uuid)) return false;
-
-        // Check wallet
         if (!economyManager.has(uuid, amount)) return false;
 
-        // Check Bank Limit (Optional logic)
         int level = getBankLevel(uuid);
         double limit = plugin.getConfig().getDouble("banks.levels." + level + ".limit", Double.MAX_VALUE);
         if (getBankBalance(uuid) + amount > limit) return false;
 
-        // Execute
         economyManager.withdraw(uuid, amount);
         bankBalances.put(uuid, getBankBalance(uuid) + amount);
+        save(true);
         return true;
     }
 
@@ -123,13 +156,14 @@ public class BankManager {
 
         bankBalances.put(uuid, getBankBalance(uuid) - amount);
         economyManager.deposit(uuid, amount);
+        save(true);
         return true;
     }
 
-    // Used by InterestTask
     public void addInterest(UUID uuid, double amount) {
         if (hasBankAccount(uuid)) {
             bankBalances.put(uuid, getBankBalance(uuid) + amount);
+            save(true);
         }
     }
 }

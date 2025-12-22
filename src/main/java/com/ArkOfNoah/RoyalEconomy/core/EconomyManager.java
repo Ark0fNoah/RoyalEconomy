@@ -15,16 +15,38 @@ public class EconomyManager implements Economy {
 
     private final RoyalEconomy plugin;
     private final StorageHandler storageHandler;
-    // This is the single source of truth for balances
+
+    // Data Storage
     private final Map<UUID, Double> balances = new HashMap<>();
+
+    // Cached Formatting (Optimization)
+    private DecimalFormat moneyFormat;
+    private String currencySymbol;
+    private String currencyPrefix;
+    private String currencySuffix;
 
     public EconomyManager(RoyalEconomy plugin, StorageHandler storageHandler) {
         this.plugin = plugin;
         this.storageHandler = storageHandler;
 
-        // Load data from storage into RAM immediately
-        // FIX: changed 'accounts' to 'balances'
+        // 1. Load Balances
         this.balances.putAll(storageHandler.getBalances());
+
+        // 2. Initialize Formatters
+        reloadCurrencyConfig();
+    }
+
+    /**
+     * Loads/Reloads currency settings from config.
+     * Called on startup and by /royaleconomy reload
+     */
+    public void reloadCurrencyConfig() {
+        String pattern = plugin.getConfig().getString("core.currency.format", "#,##0.00");
+        this.moneyFormat = new DecimalFormat(pattern);
+
+        this.currencySymbol = plugin.getConfig().getString("core.currency.symbol", "$");
+        this.currencyPrefix = plugin.getConfig().getString("core.currency.prefix", "");
+        this.currencySuffix = plugin.getConfig().getString("core.currency.suffix", "");
     }
 
     // --- Core API Methods ---
@@ -36,13 +58,12 @@ public class EconomyManager implements Economy {
 
     @Override
     public void setBalance(UUID uuid, double amount) {
-        // Enforce max balance check even on set
         double max = getMaxBalance();
         if (max > 0 && amount > max) {
             amount = max;
         }
         balances.put(uuid, Math.max(0, amount));
-        saveTask(); // Auto-save logic
+        saveTask();
     }
 
     @Override
@@ -52,10 +73,9 @@ public class EconomyManager implements Economy {
         double current = getBalance(uuid);
         double newBalance = current + amount;
 
-        // Check Max Balance Config
         double max = getMaxBalance();
         if (max > 0 && newBalance > max) {
-            return false; // Transaction failed: would exceed limit
+            return false;
         }
 
         balances.put(uuid, newBalance);
@@ -68,7 +88,7 @@ public class EconomyManager implements Economy {
         if (amount <= 0) return false;
 
         double current = getBalance(uuid);
-        if (current < amount) return false; // Insufficient funds
+        if (current < amount) return false;
 
         balances.put(uuid, current - amount);
         saveTask();
@@ -83,18 +103,14 @@ public class EconomyManager implements Economy {
     @Override
     public boolean transfer(UUID from, UUID to, double amount) {
         if (amount <= 0) return false;
-
-        // 1. Check if sender has enough
         if (!has(from, amount)) return false;
 
-        // 2. Check if receiver can hold that much (Max Balance)
         double receiverBal = getBalance(to);
         double max = getMaxBalance();
         if (max > 0 && (receiverBal + amount) > max) {
-            return false; // Transfer failed: receiver is full
+            return false;
         }
 
-        // 3. Execute (saveTask is called inside withdraw/deposit)
         withdraw(from, amount);
         deposit(to, amount);
         return true;
@@ -102,17 +118,13 @@ public class EconomyManager implements Economy {
 
     @Override
     public String format(double amount) {
-        // Pull format settings directly from config.yml
-        String pattern = plugin.getConfig().getString("core.currency.format", "#,##0.00");
-        String symbol = plugin.getConfig().getString("core.currency.symbol", "$");
-        String prefix = plugin.getConfig().getString("core.currency.prefix", "");
-        String suffix = plugin.getConfig().getString("core.currency.suffix", "");
-
-        DecimalFormat df = new DecimalFormat(pattern);
-        String formattedNumber = df.format(amount);
-
-        // Result example: "$1,250.00"
-        return prefix + symbol + formattedNumber + suffix;
+        // OPTIMIZATION: Use cached formatter and strings
+        // Synchronized because DecimalFormat is not thread-safe
+        String formattedNumber;
+        synchronized (moneyFormat) {
+            formattedNumber = moneyFormat.format(amount);
+        }
+        return currencyPrefix + currencySymbol + formattedNumber + currencySuffix;
     }
 
     @Override
@@ -122,9 +134,6 @@ public class EconomyManager implements Economy {
 
     // --- Helper Methods ---
 
-    /**
-     * Used by LeaderboardManager to get the raw map
-     */
     public Map<UUID, Double> getAllAccounts() {
         return balances;
     }
@@ -135,8 +144,6 @@ public class EconomyManager implements Economy {
     }
 
     private void saveTask() {
-        // We push the RAM data back to the storage handler
-        // FIX: changed 'accounts' to 'balances'
         storageHandler.save(balances);
     }
 

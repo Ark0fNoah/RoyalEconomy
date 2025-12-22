@@ -1,14 +1,18 @@
 package com.ArkOfNoah.RoyalEconomy.core;
 
 import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class StorageHandler {
 
@@ -50,27 +54,52 @@ public class StorageHandler {
         }
     }
 
-    // FIX: Pass the data in, don't ask the plugin for it (avoids loops)
+    /**
+     * Default save (Async) - Used by auto-save tasks
+     */
     public void save(Map<UUID, Double> currentBalances) {
-        if (config == null) {
-            config = new YamlConfiguration();
-        }
+        save(currentBalances, true);
+    }
 
-        config.set("balances", null); // Clear old data
+    /**
+     * Flexible Save Method
+     * @param async If true, runs in background (prevent lag). If false, runs immediately (safe for onDisable).
+     */
+    public void save(Map<UUID, Double> currentBalances, boolean async) {
+        // 1. Snapshot on Main Thread
+        Map<UUID, Double> snapshot = new HashMap<>(currentBalances);
 
-        for (Map.Entry<UUID, Double> entry : currentBalances.entrySet()) {
-            config.set("balances." + entry.getKey().toString(), entry.getValue());
-        }
+        // Define the saving logic
+        Runnable saveTask = () -> {
+            YamlConfiguration tmpConfig = new YamlConfiguration();
 
-        try {
-            config.save(file);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Could not save balances.yml");
-            e.printStackTrace();
+            for (Map.Entry<UUID, Double> entry : snapshot.entrySet()) {
+                tmpConfig.set("balances." + entry.getKey().toString(), entry.getValue());
+            }
+
+            File tmpFile = new File(plugin.getDataFolder(), "balances.yml.tmp");
+
+            try {
+                tmpConfig.save(tmpFile);
+                Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Could not save balances.yml!", e);
+            }
+        };
+
+        // 2. Execute
+        if (async) {
+            try {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, saveTask);
+            } catch (Exception e) {
+                // If async fails (rare edge case), run sync
+                saveTask.run();
+            }
+        } else {
+            saveTask.run(); // Run immediately on main thread
         }
     }
 
-    // FIX: Renamed from getLoadedBalances to getBalances to match EconomyManager usage
     public Map<UUID, Double> getBalances() {
         return loadedBalances;
     }
