@@ -2,6 +2,8 @@ package com.ArkOfNoah.RoyalEconomy.core;
 
 import com.ArkOfNoah.RoyalEconomy.RoyalEconomy;
 import com.ArkOfNoah.RoyalEconomy.api.Economy;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 
 import java.text.DecimalFormat;
 import java.util.Collections;
@@ -12,43 +14,64 @@ import java.util.UUID;
 public class EconomyManager implements Economy {
 
     private final RoyalEconomy plugin;
-    private final StorageHandler storage;
+    private final StorageHandler storageHandler;
+    // This is the single source of truth for balances
     private final Map<UUID, Double> balances = new HashMap<>();
-    private final DecimalFormat decimalFormat = new DecimalFormat("#,##0.00");
 
-    public EconomyManager(RoyalEconomy plugin, StorageHandler storage) {
+    public EconomyManager(RoyalEconomy plugin, StorageHandler storageHandler) {
         this.plugin = plugin;
-        this.storage = storage;
+        this.storageHandler = storageHandler;
 
-        // preload from storage
-        balances.putAll(storage.getLoadedBalances());
+        // Load data from storage into RAM immediately
+        // FIX: changed 'accounts' to 'balances'
+        this.balances.putAll(storageHandler.getBalances());
     }
+
+    // --- Core API Methods ---
 
     @Override
     public double getBalance(UUID uuid) {
-        // If player not known yet, use default starting balance
         return balances.getOrDefault(uuid, getDefaultBalance());
     }
 
     @Override
     public void setBalance(UUID uuid, double amount) {
+        // Enforce max balance check even on set
+        double max = getMaxBalance();
+        if (max > 0 && amount > max) {
+            amount = max;
+        }
         balances.put(uuid, Math.max(0, amount));
+        saveTask(); // Auto-save logic
     }
 
     @Override
     public boolean deposit(UUID uuid, double amount) {
         if (amount <= 0) return false;
+
         double current = getBalance(uuid);
-        balances.put(uuid, current + amount);
+        double newBalance = current + amount;
+
+        // Check Max Balance Config
+        double max = getMaxBalance();
+        if (max > 0 && newBalance > max) {
+            return false; // Transaction failed: would exceed limit
+        }
+
+        balances.put(uuid, newBalance);
+        saveTask();
         return true;
     }
 
     @Override
     public boolean withdraw(UUID uuid, double amount) {
         if (amount <= 0) return false;
+
         double current = getBalance(uuid);
-        if (current < amount) return false;
+        if (current < amount) return false; // Insufficient funds
+
         balances.put(uuid, current - amount);
+        saveTask();
         return true;
     }
 
@@ -59,35 +82,69 @@ public class EconomyManager implements Economy {
 
     @Override
     public boolean transfer(UUID from, UUID to, double amount) {
-        if (!withdraw(from, amount)) return false;
-        if (!deposit(to, amount)) {
-            // rollback if deposit fails (just in case)
-            deposit(from, amount);
-            return false;
+        if (amount <= 0) return false;
+
+        // 1. Check if sender has enough
+        if (!has(from, amount)) return false;
+
+        // 2. Check if receiver can hold that much (Max Balance)
+        double receiverBal = getBalance(to);
+        double max = getMaxBalance();
+        if (max > 0 && (receiverBal + amount) > max) {
+            return false; // Transfer failed: receiver is full
         }
+
+        // 3. Execute (saveTask is called inside withdraw/deposit)
+        withdraw(from, amount);
+        deposit(to, amount);
         return true;
     }
 
     @Override
     public String format(double amount) {
-        // You can make this configurable via config.yml
-        return decimalFormat.format(amount) + " coins";
+        // Pull format settings directly from config.yml
+        String pattern = plugin.getConfig().getString("core.currency.format", "#,##0.00");
+        String symbol = plugin.getConfig().getString("core.currency.symbol", "$");
+        String prefix = plugin.getConfig().getString("core.currency.prefix", "");
+        String suffix = plugin.getConfig().getString("core.currency.suffix", "");
+
+        DecimalFormat df = new DecimalFormat(pattern);
+        String formattedNumber = df.format(amount);
+
+        // Result example: "$1,250.00"
+        return prefix + symbol + formattedNumber + suffix;
     }
 
-    /**
-     * Default starting balance from config.
-     */
-    public double getDefaultBalance() {
-        return plugin.getConfig().getDouble("default-balance", 0.0);
-    }
-
-    /**
-     * All balances, used mainly by StorageHandler.
-     */
     @Override
     public Map<UUID, Double> getAllBalances() {
-        // If you want to protect the map from external modification:
         return Collections.unmodifiableMap(balances);
-        // If you don't care: just "return balances;" instead.
+    }
+
+    // --- Helper Methods ---
+
+    /**
+     * Used by LeaderboardManager to get the raw map
+     */
+    public Map<UUID, Double> getAllAccounts() {
+        return balances;
+    }
+
+    public String getPlayerName(UUID uuid) {
+        OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
+        return (op.getName() != null) ? op.getName() : "Unknown";
+    }
+
+    private void saveTask() {
+        // We push the RAM data back to the storage handler
+        // FIX: changed 'accounts' to 'balances'
+        storageHandler.save(balances);
+    }
+
+    public double getDefaultBalance() {
+        return plugin.getConfig().getDouble("core.starting-balance", 0.0);
+    }
+
+    public double getMaxBalance() {
+        return plugin.getConfig().getDouble("core.max-balance", -1.0);
     }
 }

@@ -1,0 +1,45 @@
+# RoyalEconomy Messages
+# Placeholders available globally: %prefix%
+
+prefix: "&7[&0R&fE&7] "
+
+general:
+  no-permission: "&cYou do not have permission to execute this command."
+  only-players: "&cOnly players can use this command."
+  invalid-number: "&cInvalid number provided."
+  player-not-found: "&cPlayer &f%player% &cnot found."
+  unknown-command: "&cUnknown subcommand."
+  reload: "&aConfiguration and messages reloaded successfully in &f%time%ms&a!"
+
+balance:
+  self: "&fYour Balance: &a%amount%"
+  other: "&f%player%'s Balance: &a%amount%"
+
+pay:
+  usage: "&cUsage: /pay <player> <amount>"
+  self-pay: "&cYou cannot pay yourself!"
+  sent: "&fSent &a%amount% &fto &e%target%&f."
+  received: "&fReceived &a%amount% &ffrom &e%sender%&f."
+  insufficient-funds: "&cInsufficient funds. You have &c%balance% &cbut need &e%amount%&c."
+
+admin:
+  usage: "&cUsage: /eco <give|take|set|reset> <player> <amount>"
+  set: "&fSet &e%player%'s &fbalance to &a%amount%&f."
+  give: "&fGave &a%amount% &fto &e%player%&f. New balance: &a%total%"
+  take: "&fTook &a%amount% &ffrom &e%player%&f. New balance: &a%total%"
+  reset: "&fReset &e%player%'s &fbalance to default."
+
+baltop:
+  header: "&8&m--------&r &6Top Balances &8&m--------"
+  entry: "&e%rank%. &f%player% &7- &a%amount%"
+  footer: "&8&m----------------------------"
+
+bank:
+  usage: "&cUsage: /bank <create|info|deposit|withdraw> [args]"
+  created: "&aBank account created successfully!"
+  already-exists: "&cYou already have a bank account."
+  not-exists: "&cYou do not have a bank account. Use /bank create."
+  info: "&fBank Level: &b%level% &7| &fBalance: &a%balance% &7| &fInterest: &e%interest%%"
+  deposited: "&fDeposited &a%amount% &finto bank."
+  withdrawn: "&fWithdrew &a%amount% &ffrom bank."
+  limit-reached: "&cBank limit reached! Upgrade your bank to hold more."

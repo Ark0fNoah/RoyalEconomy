@@ -50,14 +50,18 @@ public class StorageHandler {
         }
     }
 
-    public void save() {
+    // FIX: Pass the data in, don't ask the plugin for it (avoids loops)
+    public void save(Map<UUID, Double> currentBalances) {
         if (config == null) {
             config = new YamlConfiguration();
         }
-        config.set("balances", null); // clear
-        for (Map.Entry<UUID, Double> entry : plugin.getEconomy().getAllBalances().entrySet()) {
+
+        config.set("balances", null); // Clear old data
+
+        for (Map.Entry<UUID, Double> entry : currentBalances.entrySet()) {
             config.set("balances." + entry.getKey().toString(), entry.getValue());
         }
+
         try {
             config.save(file);
         } catch (IOException e) {
@@ -66,7 +70,8 @@ public class StorageHandler {
         }
     }
 
-    public Map<UUID, Double> getLoadedBalances() {
+    // FIX: Renamed from getLoadedBalances to getBalances to match EconomyManager usage
+    public Map<UUID, Double> getBalances() {
         return loadedBalances;
     }
 }

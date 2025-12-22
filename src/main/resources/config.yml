@@ -55,8 +55,21 @@ general:
 # MESSAGES / PREFIX
 ############################################################
 messages:
-  use-prefix: true
-  prefix: "&7[&9Royal&fEconomy&7]&r "
+  prefix: "&7[&9R&fE&7] "
+
+  # The "Theme" of your plugin
+  theme:
+    # Standard text color (Gray)
+    primary: "&7"
+    # Highlighted values like numbers or player names (White or Aqua)
+    highlight: "&f"
+    # Error messages (Red)
+    error: "&c"
+    # Success messages (Green)
+    success: "&a"
+    # Usage messages
+    usage-label: "&9"   # The word "Usage:"
+    usage-text: "&b"    # The actual command "/eco give..."
 
   # Generic / shared messages
   no-permission: "%prefix% &cYou don't have permission to do that."
@@ -111,15 +124,6 @@ core:
       min-amount: 0.01
       max-amount: -1        # -1 = no specific pay limit
       require-online-target: false
-
-  core-messages:
-    balance-self: "%prefix% &aYour balance: &e%balance_formatted%"
-    balance-others: "%prefix% &a%target%&7's balance: &e%balance_formatted%"
-    pay-usage: "%prefix% &cUsage: /pay <player> <amount>"
-    pay-sent: "%prefix% &aYou paid &e%target% %amount_formatted%&a."
-    pay-received: "%prefix% &aYou received %amount_formatted% &afrom &e%player%&a."
-    insufficient-funds: "%prefix% &cYou don't have enough money."
-    max-balance-reached: "%prefix% &cYou cannot receive more money (max balance reached)."
 
 
 ############################################################

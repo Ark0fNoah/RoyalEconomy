@@ -1,25 +1,13 @@
 package com.ArkOfNoah.RoyalEconomy;
 
 import com.ArkOfNoah.RoyalEconomy.api.Economy;
-import com.ArkOfNoah.RoyalEconomy.core.EconomyManager;
-import com.ArkOfNoah.RoyalEconomy.core.StorageHandler;
-import com.ArkOfNoah.RoyalEconomy.core.TransactionLogger;
-import com.ArkOfNoah.RoyalEconomy.core.LeaderboardManager;
-import com.ArkOfNoah.RoyalEconomy.core.BankManager;
-import com.ArkOfNoah.RoyalEconomy.core.BoostManager;
-import com.ArkOfNoah.RoyalEconomy.core.InterestTask;
-import com.ArkOfNoah.RoyalEconomy.core.TaxManager;
-import com.ArkOfNoah.RoyalEconomy.commands.BalanceCommand;
-import com.ArkOfNoah.RoyalEconomy.commands.RoyalEconomyCommand;
-import com.ArkOfNoah.RoyalEconomy.commands.RoyalEconomyTabCompleter;
-import com.ArkOfNoah.RoyalEconomy.commands.PayCommand;
-import com.ArkOfNoah.RoyalEconomy.commands.EcoAdminCommand;
-import com.ArkOfNoah.RoyalEconomy.commands.BaltopCommand;
-import com.ArkOfNoah.RoyalEconomy.commands.BankCommand;
+import com.ArkOfNoah.RoyalEconomy.commands.*;
+import com.ArkOfNoah.RoyalEconomy.core.*;
 import com.ArkOfNoah.RoyalEconomy.listeners.PlayerJoinListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
+
 import java.lang.reflect.Constructor;
 import java.util.logging.Level;
 
@@ -27,222 +15,164 @@ public class RoyalEconomy extends JavaPlugin {
 
     private static RoyalEconomy instance;
 
-    private TaxManager taxManager;
-    private BoostManager boostManager;
-    private InterestTask interestTask;
-
+    // Managers
+    private MessageManager messageManager; // NEW
     private EconomyManager economyManager;
     private StorageHandler storageHandler;
-
     private TransactionLogger transactionLogger;
     private LeaderboardManager leaderboardManager;
     private BankManager bankManager;
+    private BoostManager boostManager;
+    private TaxManager taxManager;
 
-    private void setupVault2Bridge() {
-        // 1) Config toggle
-        if (!getConfig().getBoolean("hooks.vault2.enabled", true)) {
-            getLogger().info("Vault2 bridge disabled in config (hooks.vault2.enabled=false).");
-            return;
-        }
-
-        // 2) Check if Vault / VaultUnlocked plugin is installed
-        if (getServer().getPluginManager().getPlugin("Vault") == null) {
-            getLogger().info("Vault / VaultUnlocked not found. Skipping Vault2 bridge.");
-            return;
-        }
-
-        try {
-            // 3) Try to load Vault2 Economy interface
-            Class<?> vaultEcoClass = Class.forName("net.milkbowl.vault2.economy.Economy");
-
-            // 4) Try to load your bridge class
-            Class<?> bridgeClass = Class.forName("com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge");
-
-            // RoyalEconomyVaultBridge(RoyalEconomy plugin, com.ArkOfNoah.RoyalEconomy.api.Economy royalEconomy)
-            Constructor<?> ctor = bridgeClass.getConstructor(
-                    com.ArkOfNoah.RoyalEconomy.RoyalEconomy.class,
-                    com.ArkOfNoah.RoyalEconomy.api.Economy.class
-            );
-
-            Object bridgeInstance = ctor.newInstance(this, (com.ArkOfNoah.RoyalEconomy.api.Economy) economyManager);
-
-            // 5) Register with Bukkit Services
-            Bukkit.getServicesManager().register(
-                    (Class) vaultEcoClass,
-                    bridgeInstance,
-                    this,
-                    ServicePriority.Highest
-            );
-
-            getLogger().info("Registered RoyalEconomy as Vault2 (VaultUnlocked) economy provider.");
-        } catch (ClassNotFoundException e) {
-            // This means Vault2 API classes are NOT present on the server.
-            getLogger().info("Vault2 API (net.milkbowl.vault2.economy.Economy) not found. Skipping Vault2 bridge.");
-        } catch (Exception ex) {
-            // Any other reflection or instantiation problem
-            getLogger().log(Level.WARNING, "Failed to setup Vault2 bridge: " + ex.getMessage(), ex);
-        }
-    }
-
-    public void reloadLogger() {
-        this.transactionLogger = new TransactionLogger(this);
-    }
-
-    public void reloadLeaderboard() {
-        int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
-    }
-
-    public TaxManager getTaxManager() {
-        return taxManager;
-    }
-
-    public BoostManager getBoostManager() {
-        return boostManager;
-    }
+    // Tasks
+    private InterestTask interestTask;
 
     @Override
     public void onEnable() {
         instance = this;
-
-        // Config
         saveDefaultConfig();
 
-        // Economy storage + manager
-        storageHandler = new StorageHandler(this);
-        storageHandler.load();
-        economyManager = new EconomyManager(this, storageHandler);
-
-        // Logging
-        transactionLogger = new TransactionLogger(this);
-
-        // Leaderboard
-        int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
-
-        // Banks
-        bankManager = new BankManager(this, economyManager);
-        if (getConfig().getBoolean("banks.enabled", false)) {
-            bankManager.load();
-        }
-
-        // Boosts
-        boostManager = new BoostManager(this);
-
-        // Taxes
-        taxManager = new TaxManager(this, economyManager);
-
-        // Interest
-        if (getConfig().getBoolean("interest.enabled", false)) {
-            int minutes = getConfig().getInt("interest.interval-minutes", 60);
-            long ticks = minutes * 60L * 20L;
-            if (ticks <= 0) ticks = 20L * 60L; // fallback 1 minute
-
-            interestTask = new InterestTask(this, economyManager, bankManager, boostManager);
-            interestTask.runTaskTimer(this, ticks, ticks);
-            getLogger().info("InterestTask scheduled every " + minutes + " minute(s).");
-        }
+        initializeManagers();
+        startInterestTask();
 
         registerService();
+        setupVault2Bridge();
+        setupPlaceholderAPI();
+
         registerCommands();
         registerListeners();
 
-        setupVault2Bridge();
-
-        // PlaceholderAPI expansion
-        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
-            new com.ArkOfNoah.RoyalEconomy.placeholder.RoyalEconomyExpansion(this).register();
-            getLogger().info("Registered RoyalEconomy PlaceholderAPI expansion.");
-        } else {
-            getLogger().info("PlaceholderAPI not found. Skipping PAPI expansion registration.");
-        }
-
-        getLogger().info("RoyalEconomy enabled!");
+        getLogger().info("RoyalEconomy has been enabled successfully!");
     }
 
     @Override
     public void onDisable() {
-        if (storageHandler != null) {
-            storageHandler.save();
-        }
-        if (bankManager != null && getConfig().getBoolean("banks.enabled", false)) {
-            bankManager.save();
+        if (storageHandler != null && economyManager != null) {
+            storageHandler.save(economyManager.getAllAccounts());
         }
 
-        if (interestTask != null) {
-            interestTask.cancel();
-        }
+        if (bankManager != null && isBankEnabled()) bankManager.save();
+        if (interestTask != null) interestTask.cancel();
 
-        getLogger().info("RoyalEconomy disabled!");
+        getLogger().info("RoyalEconomy disabled.");
+    }
+
+    private void initializeManagers() {
+        // 1. Load Messages FIRST
+        messageManager = new MessageManager(this);
+
+        storageHandler = new StorageHandler(this);
+        storageHandler.load();
+
+        economyManager = new EconomyManager(this, storageHandler);
+        transactionLogger = new TransactionLogger(this);
+        boostManager = new BoostManager(this);
+        taxManager = new TaxManager(this, economyManager);
+
+        int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
+        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
+
+        bankManager = new BankManager(this, economyManager);
+        if (isBankEnabled()) {
+            bankManager.load();
+        }
+    }
+
+    public void reloadPlugin() {
+        reloadConfig();
+        messageManager.load(); // Reload messages
+
+        transactionLogger = new TransactionLogger(this);
+
+        int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
+        leaderboardManager = new LeaderboardManager(economyManager, cacheSeconds);
+
+        if (isBankEnabled()) bankManager.load();
+        startInterestTask();
     }
 
     private void registerCommands() {
-
         RoyalEconomyTabCompleter tab = new RoyalEconomyTabCompleter(bankManager);
 
-        // /royaleconomy
-        getCommand("royaleconomy").setExecutor(new RoyalEconomyCommand(this));
-        getCommand("royaleconomy").setTabCompleter(tab);
+        registerCommand("royaleconomy", new RoyalEconomyCommand(this), tab);
+        registerCommand("balance", new BalanceCommand(this), null);
+        registerCommand("pay", new PayCommand(this), tab);
+        registerCommand("eco", new EcoAdminCommand(this), tab);
 
-        // /balance
-        getCommand("balance").setExecutor(new BalanceCommand(economyManager));
-        getCommand("balance").setTabCompleter(tab);
-
-        // /pay
-        getCommand("pay").setExecutor(new PayCommand(this, economyManager));
-        getCommand("pay").setTabCompleter(tab);
-
-        // /eco
-        getCommand("eco").setExecutor(new EcoAdminCommand(this, economyManager));
-        getCommand("eco").setTabCompleter(tab);
-
-        // /baltop
         if (getConfig().getBoolean("baltop.enabled", true)) {
-            getCommand("baltop").setExecutor(new BaltopCommand(this, leaderboardManager));
-            getCommand("baltop").setTabCompleter(tab);
+            registerCommand("baltop", new BaltopCommand(this), tab);
         }
 
-        // /bank
-        if (getConfig().getBoolean("banks.enabled", false)) {
-            getCommand("bank").setExecutor(new BankCommand(this, bankManager));
-            getCommand("bank").setTabCompleter(tab);
+        if (isBankEnabled()) {
+            registerCommand("bank", new BankCommand(this), tab);
+        }
+    }
+
+    private void registerCommand(String name, org.bukkit.command.CommandExecutor executor, org.bukkit.command.TabCompleter tab) {
+        if (getCommand(name) != null) {
+            getCommand(name).setExecutor(executor);
+            if (tab != null) getCommand(name).setTabCompleter(tab);
         }
     }
 
     private void registerListeners() {
-        Bukkit.getPluginManager().registerEvents(
-                new PlayerJoinListener(economyManager, getConfig()),
-                this
-        );
+        Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(economyManager, getConfig()), this);
+    }
+
+    private void startInterestTask() {
+        if (interestTask != null) interestTask.cancel();
+        if (getConfig().getBoolean("interest.enabled", false)) {
+            int minutes = getConfig().getInt("interest.interval-minutes", 60);
+            long ticks = Math.max(minutes * 60L * 20L, 1200L);
+            interestTask = new InterestTask(this, economyManager, bankManager, boostManager);
+            interestTask.runTaskTimer(this, ticks, ticks);
+        }
+    }
+
+    private boolean isBankEnabled() {
+        return getConfig().getBoolean("banks.enabled", false);
     }
 
     private void registerService() {
-        // Register your own Economy API as a Bukkit service
-        Bukkit.getServicesManager().register(
-                Economy.class,
-                economyManager,
-                this,
-                ServicePriority.Normal
-        );
+        Bukkit.getServicesManager().register(Economy.class, economyManager, this, ServicePriority.Normal);
     }
 
-    public static RoyalEconomy getInstance() {
-        return instance;
+    private void setupPlaceholderAPI() {
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new com.ArkOfNoah.RoyalEconomy.placeholder.RoyalEconomyExpansion(this).register();
+        }
     }
 
-    public Economy getEconomy() {
-        return economyManager;
+    private void setupVault2Bridge() {
+        if (!getConfig().getBoolean("hooks.vault2.enabled", true)) return;
+        if (getServer().getPluginManager().getPlugin("Vault") == null) return;
+
+        try {
+            Class<?> bridgeClass = Class.forName("com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge");
+            // Standard Vault Package
+            Class<?> vaultEconomyClass = Class.forName("net.milkbowl.vault.economy.Economy");
+
+            Constructor<?> ctor = bridgeClass.getConstructor(RoyalEconomy.class, Economy.class);
+            Object bridge = ctor.newInstance(this, economyManager);
+
+            registerServiceUnsafe(vaultEconomyClass, bridge);
+            getLogger().info("Vault bridge active.");
+        } catch (Exception e) {
+            getLogger().info("Vault API not found or error: " + e.getMessage());
+        }
     }
 
-    public TransactionLogger getTransactionLogger() {
-        return transactionLogger;
+    @SuppressWarnings("unchecked")
+    private <T> void registerServiceUnsafe(Class<?> serviceClass, Object provider) {
+        Bukkit.getServicesManager().register((Class<T>) serviceClass, (T) provider, this, ServicePriority.Highest);
     }
 
-    public BankManager getBankManager() {
-        return bankManager;
-    }
-
-    public LeaderboardManager getLeaderboardManager() {
-        return leaderboardManager;
-    }
+    // --- Getters ---
+    public static RoyalEconomy getInstance() { return instance; }
+    public Economy getEconomy() { return economyManager; }
+    public MessageManager getMessageManager() { return messageManager; }
+    public BankManager getBankManager() { return bankManager; }
+    public LeaderboardManager getLeaderboardManager() { return leaderboardManager; }
+    public TransactionLogger getTransactionLogger() { return transactionLogger; }
 }

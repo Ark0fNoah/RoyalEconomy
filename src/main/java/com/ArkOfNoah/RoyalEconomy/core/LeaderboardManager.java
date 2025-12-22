@@ -1,88 +1,60 @@
 package com.ArkOfNoah.RoyalEconomy.core;
 
-import com.ArkOfNoah.RoyalEconomy.api.Economy;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class LeaderboardManager {
 
-    public void forceRefresh() {
-        this.lastUpdate = 0;
-    }
-
-    public static class Entry {
-        private final UUID uuid;
-        private final double balance;
-
-        public Entry(UUID uuid, double balance) {
-            this.uuid = uuid;
-            this.balance = balance;
-        }
-
-        public UUID getUuid() {
-            return uuid;
-        }
-
-        public double getBalance() {
-            return balance;
-        }
-
-        public String getName() {
-            OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
-            return op.getName() != null ? op.getName() : uuid.toString();
-        }
-    }
-
-    private final Economy economy;
+    private final EconomyManager economyManager;
     private final int cacheSeconds;
 
-    private List<Entry> cached = new ArrayList<>();
-    private long lastUpdate = 0L;
+    private List<LeaderboardEntry> cachedTop;
+    private long lastUpdate = 0;
 
-    public LeaderboardManager(Economy economy, int cacheSeconds) {
-        this.economy = economy;
+    public LeaderboardManager(EconomyManager economyManager, int cacheSeconds) {
+        this.economyManager = economyManager;
         this.cacheSeconds = cacheSeconds;
     }
 
-    private void refreshIfNeeded() {
+    public List<LeaderboardEntry> getTopAccounts(int limit) {
         long now = System.currentTimeMillis();
-        if (now - lastUpdate < cacheSeconds * 1000L) {
-            return;
+        // Check if cache is still valid
+        if (cachedTop != null && (now - lastUpdate) < (cacheSeconds * 1000L)) {
+            return cachedTop.stream().limit(limit).collect(Collectors.toList());
         }
-        lastUpdate = now;
 
-        Map<UUID, Double> all = economy.getAllBalances();
-        cached = all.entrySet().stream()
-                .map(e -> new Entry(e.getKey(), e.getValue()))
-                .sorted(Comparator.comparingDouble(Entry::getBalance).reversed())
+        // Refresh Cache
+        forceRefresh();
+
+        return cachedTop.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    public void forceRefresh() {
+        // This is a heavy operation, effectively sorting all players
+        // In a real database scenario, you would use a SQL query "ORDER BY balance DESC"
+        // Since we are using HashMap storage in EconomyManager, we stream it.
+
+        cachedTop = economyManager.getAllAccounts().entrySet().stream()
+                .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed())
+                .map(entry -> new LeaderboardEntry(entry.getKey(), entry.getValue(), economyManager.getPlayerName(entry.getKey())))
                 .collect(Collectors.toList());
+
+        lastUpdate = System.currentTimeMillis();
     }
 
-    public List<Entry> getPage(int page, int pageSize) {
-        refreshIfNeeded();
-        if (page <= 0) page = 1;
-        int from = (page - 1) * pageSize;
-        int to = Math.min(from + pageSize, cached.size());
-        if (from >= cached.size()) return Collections.emptyList();
-        return cached.subList(from, to);
-    }
+    // --- Inner Class for Data ---
+    public static class LeaderboardEntry {
+        private final UUID uuid;
+        private final double balance;
+        private final String name;
 
-    public int getTotalPages(int pageSize) {
-        refreshIfNeeded();
-        if (pageSize <= 0) return 1;
-        return (int) Math.max(1, Math.ceil(cached.size() / (double) pageSize));
-    }
-
-    public int getRank(UUID uuid) {
-        refreshIfNeeded();
-        for (int i = 0; i < cached.size(); i++) {
-            if (cached.get(i).getUuid().equals(uuid)) {
-                return i + 1; // 1-based
-            }
+        public LeaderboardEntry(UUID uuid, double balance, String name) {
+            this.uuid = uuid;
+            this.balance = balance;
+            this.name = (name != null) ? name : "Unknown";
         }
-        return -1;
+
+        public String getName() { return name; }
+        public double getBalance() { return balance; }
     }
 }

@@ -2,50 +2,56 @@ package com.ArkOfNoah.RoyalEconomy.commands;
 
 import com.ArkOfNoah.RoyalEconomy.core.BankManager;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.util.StringUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class RoyalEconomyTabCompleter implements TabCompleter {
 
     private final BankManager bankManager;
 
-    // Pass BankManager so we can autocomplete bank names
     public RoyalEconomyTabCompleter(BankManager bankManager) {
         this.bankManager = bankManager;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
+        // Return empty list if not a player (optional, but usually safer)
+        if (!(sender instanceof Player)) return Collections.emptyList();
 
-        String command = cmd.getName().toLowerCase();
         List<String> suggestions = new ArrayList<>();
+        String commandName = cmd.getName().toLowerCase();
 
-        switch (command) {
-            case "royaleconomy" -> handleMainCommand(sender, args, suggestions);
-            case "pay"          -> handlePay(sender, args, suggestions);
-            case "eco"          -> handleEco(sender, args, suggestions);
-            case "baltop"       -> handleBaltop(sender, args, suggestions);
-            case "bank"         -> handleBank(sender, args, suggestions);
+        // Match command to handler
+        if (commandName.equals("royaleconomy")) {
+            handleMainCommand(sender, args, suggestions);
+        } else if (commandName.equals("pay")) {
+            handlePay(sender, args, suggestions);
+        } else if (commandName.equals("eco")) {
+            handleEco(sender, args, suggestions);
+        } else if (commandName.equals("baltop")) {
+            handleBaltop(sender, args, suggestions);
+        } else if (commandName.equals("bank")) {
+            handleBank(sender, args, suggestions);
         }
 
         return suggestions;
     }
 
     // ─────────────────────────────────────────
-    // /royaleconomy
+    // /royaleconomy <reload>
     // ─────────────────────────────────────────
     private void handleMainCommand(CommandSender sender, String[] args, List<String> suggestions) {
         if (args.length == 1) {
-            if (sender.hasPermission("royaleconomy.reload")) {
-                if ("reload".startsWith(args[0].toLowerCase())) {
-                    suggestions.add("reload");
-                }
+            if (sender.hasPermission("royaleconomy.admin")) {
+                StringUtil.copyPartialMatches(args[0], Collections.singletonList("reload"), suggestions);
             }
         }
     }
@@ -57,87 +63,43 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
         if (!sender.hasPermission("royaleconomy.pay")) return;
 
         if (args.length == 1) {
-            String current = args[0].toLowerCase();
+            // Suggest online players
+            List<String> playerNames = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getName().toLowerCase().startsWith(current)) {
-                    suggestions.add(p.getName());
-                }
+                playerNames.add(p.getName());
             }
+            StringUtil.copyPartialMatches(args[0], playerNames, suggestions);
         }
-
-        if (args.length == 2) {
-            String[] amounts = {"10", "50", "100", "250", "500", "1000"};
-            for (String s : amounts) {
-                if (s.startsWith(args[1].toLowerCase())) {
-                    suggestions.add(s);
-                }
-            }
+        else if (args.length == 2) {
+            // Suggest common amounts
+            List<String> amounts = Arrays.asList("10", "100", "500", "1000");
+            StringUtil.copyPartialMatches(args[1], amounts, suggestions);
         }
     }
 
     // ─────────────────────────────────────────
-    // /eco <set|give|take|boost|debugtest> ...
+    // /eco <give|take|set|reset> <player> <amount>
     // ─────────────────────────────────────────
     private void handleEco(CommandSender sender, String[] args, List<String> suggestions) {
         if (!sender.hasPermission("royaleconomy.admin")) return;
 
-        // /eco <sub>
         if (args.length == 1) {
-            String current = args[0].toLowerCase();
-            String[] subs = {"set", "give", "take", "boost", "debugtest"};
-            for (String s : subs) {
-                if (s.startsWith(current)) suggestions.add(s);
-            }
-            return;
+            List<String> subs = Arrays.asList("give", "take", "set", "reset");
+            StringUtil.copyPartialMatches(args[0], subs, suggestions);
         }
-
-        // /eco <sub> <player>
-        if (args.length == 2) {
-            String sub0 = args[0].toLowerCase();
-            String current = args[1].toLowerCase();
-
-            // For boost, set, give, take → suggest player names
-            if (sub0.equals("boost") || sub0.equals("set")
-                    || sub0.equals("give") || sub0.equals("take")) {
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (p.getName().toLowerCase().startsWith(current)) {
-                        suggestions.add(p.getName());
-                    }
-                }
+        else if (args.length == 2) {
+            // Suggest players for the second argument
+            List<String> playerNames = new ArrayList<>();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                playerNames.add(p.getName());
             }
-            return;
+            StringUtil.copyPartialMatches(args[1], playerNames, suggestions);
         }
-
-        // /eco boost <player> <multiplier>
-        if (args.length == 3 && args[0].equalsIgnoreCase("boost")) {
-            String current = args[2].toLowerCase();
-            String[] opts = {"1.5x", "2x", "3x"};
-            for (String s : opts) {
-                if (s.toLowerCase().startsWith(current)) suggestions.add(s);
-            }
-            return;
-        }
-
-        // /eco boost <player> <multiplier> <duration>
-        if (args.length == 4 && args[0].equalsIgnoreCase("boost")) {
-            String current = args[3].toLowerCase();
-            String[] opts = {"30m", "1h", "2h", "24h", "7d"};
-            for (String s : opts) {
-                if (s.toLowerCase().startsWith(current)) suggestions.add(s);
-            }
-            return;
-        }
-
-        // /eco <set|give|take> <player> <amount>
-        if (args.length == 3) {
-            String sub0 = args[0].toLowerCase();
-            String current = args[2].toLowerCase();
-
-            if (sub0.equals("set") || sub0.equals("give") || sub0.equals("take")) {
-                String[] nums = {"10", "50", "100", "250", "500", "1000"};
-                for (String n : nums) {
-                    if (n.startsWith(current)) suggestions.add(n);
-                }
+        else if (args.length == 3) {
+            // Suggest amounts (except for reset)
+            if (!args[0].equalsIgnoreCase("reset")) {
+                List<String> amounts = Arrays.asList("100", "1000", "5000", "10000");
+                StringUtil.copyPartialMatches(args[2], amounts, suggestions);
             }
         }
     }
@@ -147,81 +109,27 @@ public class RoyalEconomyTabCompleter implements TabCompleter {
     // ─────────────────────────────────────────
     private void handleBaltop(CommandSender sender, String[] args, List<String> suggestions) {
         if (args.length == 1) {
-            if (!sender.hasPermission("royaleconomy.baltop")) return;
-            for (int i = 1; i <= 5; i++) {
-                String s = String.valueOf(i);
-                if (s.startsWith(args[0].toLowerCase())) {
-                    suggestions.add(s);
-                }
-            }
+            List<String> pages = Arrays.asList("1", "2", "3", "4", "5");
+            StringUtil.copyPartialMatches(args[0], pages, suggestions);
         }
     }
 
     // ─────────────────────────────────────────
-    // /bank commands
+    // /bank <create|info|deposit|withdraw> [amount]
     // ─────────────────────────────────────────
     private void handleBank(CommandSender sender, String[] args, List<String> suggestions) {
         if (!sender.hasPermission("royaleconomy.bank.use")) return;
 
-        // /bank <action>
         if (args.length == 1) {
-            String current = args[0].toLowerCase();
-            String[] subs = {
-                    "help", "create", "delete", "list", "info",
-                    "deposit", "withdraw", "invite", "remove"
-            };
-
-            for (String s : subs) {
-                if (s.startsWith(current)) suggestions.add(s);
-            }
-            return;
+            List<String> subs = Arrays.asList("create", "info", "deposit", "withdraw");
+            StringUtil.copyPartialMatches(args[0], subs, suggestions);
         }
-
-        if (args.length == 2) {
+        else if (args.length == 2) {
             String sub = args[0].toLowerCase();
-            String current = args[1].toLowerCase();
-
-            // Commands requiring a bank name
-            if (sub.matches("delete|info|deposit|withdraw")) {
-                for (BankManager.Bank bank : bankManager.getAllBanks()) {
-                    String name = bank.getName();
-                    if (name.toLowerCase().startsWith(current)) suggestions.add(name);
-                }
-                return;
-            }
-
-            // Commands requiring a player name
-            if (sub.matches("invite|remove")) {
-                for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
-                    if (op.getName() != null && op.getName().toLowerCase().startsWith(current)) {
-                        suggestions.add(op.getName());
-                    }
-                }
-                return;
-            }
-        }
-
-        if (args.length == 3) {
-            String sub = args[0].toLowerCase();
-            String current = args[2].toLowerCase();
-
-            // deposit / withdraw amount
+            // Only suggest amounts for deposit/withdraw
             if (sub.equals("deposit") || sub.equals("withdraw")) {
-                String[] nums = {"10", "50", "100", "250", "500", "1000"};
-                for (String n : nums) {
-                    if (n.startsWith(current)) suggestions.add(n);
-                }
-                return;
-            }
-
-            // invite/remove → bank name as 3rd argument
-            if (sub.equals("invite") || sub.equals("remove")) {
-                for (BankManager.Bank bank : bankManager.getAllBanks()) {
-                    String name = bank.getName();
-                    if (name.toLowerCase().startsWith(current)) {
-                        suggestions.add(name);
-                    }
-                }
+                List<String> amounts = Arrays.asList("100", "500", "1000", "5000");
+                StringUtil.copyPartialMatches(args[1], amounts, suggestions);
             }
         }
     }
