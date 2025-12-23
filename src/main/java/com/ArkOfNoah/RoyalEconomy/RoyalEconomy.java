@@ -3,13 +3,13 @@ package com.ArkOfNoah.RoyalEconomy;
 import com.ArkOfNoah.RoyalEconomy.api.Economy;
 import com.ArkOfNoah.RoyalEconomy.commands.*;
 import com.ArkOfNoah.RoyalEconomy.core.*;
+import com.ArkOfNoah.RoyalEconomy.gui.BankGUI;
 import com.ArkOfNoah.RoyalEconomy.listeners.PlayerJoinListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.Constructor;
-import java.util.logging.Level;
 
 public class RoyalEconomy extends JavaPlugin {
 
@@ -25,6 +25,9 @@ public class RoyalEconomy extends JavaPlugin {
     private BoostManager boostManager;
     private TaxManager taxManager;
 
+    // [FIX 3] This variable now works because the import is correct
+    private BankGUI bankGUI;
+
     // Tasks
     private InterestTask interestTask;
 
@@ -32,6 +35,8 @@ public class RoyalEconomy extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+
+        // OraxenHook.init(); // Uncomment if you have this class
 
         initializeManagers();
         startInterestTask();
@@ -77,12 +82,14 @@ public class RoyalEconomy extends JavaPlugin {
         taxManager = new TaxManager(this, economyManager);
 
         int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-        // Correct Constructor (3 args)
         leaderboardManager = new LeaderboardManager(this, economyManager, cacheSeconds);
 
         bankManager = new BankManager(this, economyManager);
         if (isBankEnabled()) {
             bankManager.load();
+            // [FIX 4] Initialize the GUI here.
+            // Note: The BankGUI constructor I gave you AUTOMATICALLY registers its own events.
+            bankGUI = new BankGUI(this);
         }
     }
 
@@ -97,11 +104,12 @@ public class RoyalEconomy extends JavaPlugin {
         transactionLogger = new TransactionLogger(this);
 
         int cacheSeconds = getConfig().getInt("baltop.cache-seconds", 30);
-
-        // FIX: Added 'this' as the first argument to match the new constructor
         leaderboardManager = new LeaderboardManager(this, economyManager, cacheSeconds);
 
-        if (isBankEnabled()) bankManager.load();
+        if (isBankEnabled()) {
+            bankManager.load();
+            // Optional: Reload GUI if you add config options to it later
+        }
         startInterestTask();
     }
 
@@ -131,6 +139,9 @@ public class RoyalEconomy extends JavaPlugin {
 
     private void registerListeners() {
         Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(economyManager, getConfig()), this);
+
+        // [FIX 5] Removed "new GUIListener(...)".
+        // BankGUI registers itself in its constructor, so we don't need to do it here.
     }
 
     private void startInterestTask() {
@@ -163,7 +174,6 @@ public class RoyalEconomy extends JavaPlugin {
 
         try {
             Class<?> bridgeClass = Class.forName("com.ArkOfNoah.RoyalEconomy.vault.RoyalEconomyVaultBridge");
-            // Standard Vault Package
             Class<?> vaultEconomyClass = Class.forName("net.milkbowl.vault.economy.Economy");
 
             Constructor<?> ctor = bridgeClass.getConstructor(RoyalEconomy.class, Economy.class);
@@ -188,4 +198,7 @@ public class RoyalEconomy extends JavaPlugin {
     public BankManager getBankManager() { return bankManager; }
     public LeaderboardManager getLeaderboardManager() { return leaderboardManager; }
     public TransactionLogger getTransactionLogger() { return transactionLogger; }
+
+    // [FIX 6] Getter for the GUI
+    public BankGUI getBankGUI() { return bankGUI; }
 }

@@ -96,6 +96,19 @@ baltop:
     self-rank: "%prefix% &7You are &e#%rank% &7with &a%balance_formatted%"
     no-data: "%prefix% &7No balance data available yet."
 
+############################################################
+# FEATURE: GUI
+############################################################
+gui:
+  bank:
+    title: "&8Bank Vault"
+    items:
+      # Put your Oraxen Item IDs here.
+      # If Oraxen is missing, the code falls back to vanilla items.
+      info: "medieval_scroll"
+      deposit: "medieval_coin"
+      withdraw: "medieval_pouch"
+      filler: "menu_glass"      # Fallback: GRAY_STAINED_GLASS_PANE
 
 ############################################################
 # FEATURE: LOGGING / TRANSACTIONS

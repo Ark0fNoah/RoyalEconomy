@@ -14,7 +14,11 @@ public class BankCommand extends RoyalCommand {
     @Override
     public void execute(Player player, String[] args) {
         if (args.length == 0) {
-            msgRaw(player, "bank.usage");
+            if (plugin.getBankGUI() != null) {
+                plugin.getBankGUI().openBank(player); // <--- Open the GUI
+            } else {
+                msgRaw(player, "bank.not-enabled");
+            }
             return;
         }
 

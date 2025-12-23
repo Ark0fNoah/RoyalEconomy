@@ -2,8 +2,8 @@ name: RoyalEconomy
 main: com.ArkOfNoah.RoyalEconomy.RoyalEconomy
 version: 1.0.0
 api-version: 1.20
-author: YourName
-softdepend: [PlaceholderAPI, Vault]
+author: ArkOfNoah
+softdepend: [PlaceholderAPI, Vault, Oraxen]
 commands:
   balance:
     description: Show your balance
