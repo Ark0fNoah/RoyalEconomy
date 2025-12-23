@@ -24,6 +24,7 @@ public class BankGUI implements Listener {
 
     private final RoyalEconomy plugin;
     private final Map<UUID, String> inputMode = new HashMap<>();
+    private final Map<UUID, UUID> payTargets = new HashMap<>(); // Stores target player for transfers
 
     public static class BankHolder implements InventoryHolder {
         @Override
@@ -35,9 +36,6 @@ public class BankGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    /**
-     * Generates the Title (Texture Only - No Text)
-     */
     private String getMenuTitle() {
         String guiTexture = OraxenHook.getGlyph("bank_gui");
         String alignGUI = OraxenHook.getShift(-11);
@@ -45,7 +43,6 @@ public class BankGUI implements Listener {
         if (guiTexture.isEmpty()) {
             return ChatColor.DARK_BLUE + "Bank Account";
         }
-        // Structure: [White Color] + [Align GUI] + [Texture]
         return ChatColor.WHITE + alignGUI + guiTexture;
     }
 
@@ -59,25 +56,29 @@ public class BankGUI implements Listener {
         double walletBal = plugin.getEconomy().getBalance(player.getUniqueId());
         double bankBal = bm.getBankBalance(player.getUniqueId());
 
-        // Create Inventory with Texture Title (No Balance Text in Title)
         Inventory inv = Bukkit.createInventory(new BankHolder(), 27, getMenuTitle());
 
-        // --- 1. DEPOSIT Button (Slot 12) ---
+        // --- 1. DEPOSIT (Slot 12) ---
         setButton(inv, "transparent", "&a&lDeposit",
                 Arrays.asList("&7Click to deposit", "&7money from your wallet."),
                 12);
 
-        // --- 2. WITHDRAW Button (Slot 14) ---
-        setButton(inv, "transparent", "&c&lWithdraw",
-                Arrays.asList("&7Click to withdraw", "&7money to your wallet."),
-                14);
-
-        // --- 3. BANK BALANCE (Slot 13) ---
+        // --- 2. BANK BALANCE (Slot 13 - Center) ---
         setButton(inv, "transparent", "&6&lBank Balance",
                 Arrays.asList("&f" + plugin.getEconomy().format(bankBal)),
                 13);
 
-        // --- 4. WALLET BALANCE (Slot 22) ---
+        // --- 3. WITHDRAW (Slot 14) ---
+        setButton(inv, "transparent", "&c&lWithdraw",
+                Arrays.asList("&7Click to withdraw", "&7money to your wallet."),
+                14);
+
+        // --- 4. PAY / TRANSFER (Slot 15 - New!) ---
+        setButton(inv, "transparent", "&b&lPay Player",
+                Arrays.asList("&7Transfer money from", "&7your bank to a player."),
+                15);
+
+        // --- 5. WALLET BALANCE (Slot 22) ---
         setButton(inv, "transparent", "&e&lWallet Balance",
                 Arrays.asList("&f" + plugin.getEconomy().format(walletBal)),
                 22);
@@ -112,6 +113,12 @@ public class BankGUI implements Listener {
                 p.sendMessage(ChatColor.GOLD + "Type amount to WITHDRAW in chat (or 'cancel'):");
                 p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             }
+            else if (name.contains("Pay Player")) {
+                p.closeInventory();
+                inputMode.put(p.getUniqueId(), "PAY_NAME");
+                p.sendMessage(ChatColor.AQUA + "Type the NAME of the player to pay (or 'cancel'):");
+                p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+            }
         }
     }
 
@@ -122,15 +129,40 @@ public class BankGUI implements Listener {
 
         e.setCancelled(true);
         String mode = inputMode.remove(p.getUniqueId());
-        String msg = e.getMessage().toLowerCase();
+        String msg = e.getMessage();
 
-        if (msg.equals("cancel") || msg.equals("exit")) {
+        // 1. Handle Cancel
+        if (msg.equalsIgnoreCase("cancel") || msg.equalsIgnoreCase("exit")) {
             p.sendMessage(ChatColor.RED + "Cancelled.");
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+            payTargets.remove(p.getUniqueId());
             Bukkit.getScheduler().runTask(plugin, () -> openBank(p));
             return;
         }
 
+        // 2. Handle Name Input (Text)
+        if (mode.equals("PAY_NAME")) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Player target = Bukkit.getPlayer(msg); // Must be online to pay
+                if (target == null) {
+                    p.sendMessage(ChatColor.RED + "Player '" + msg + "' not found or offline.");
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                    openBank(p);
+                } else if (target.getUniqueId().equals(p.getUniqueId())) {
+                    p.sendMessage(ChatColor.RED + "You cannot pay yourself.");
+                    openBank(p);
+                } else {
+                    // Valid Target -> Ask for Amount
+                    payTargets.put(p.getUniqueId(), target.getUniqueId());
+                    inputMode.put(p.getUniqueId(), "PAY_AMOUNT");
+                    p.sendMessage(ChatColor.AQUA + "Paying " + target.getName() + ". Type amount:");
+                    p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                }
+            });
+            return;
+        }
+
+        // 3. Handle Amount Input (Number)
         double amount;
         try {
             amount = Double.parseDouble(msg);
@@ -138,9 +170,11 @@ public class BankGUI implements Listener {
         } catch (NumberFormatException ex) {
             p.sendMessage(ChatColor.RED + "Invalid number.");
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+            payTargets.remove(p.getUniqueId()); // Cleanup
             return;
         }
 
+        // 4. Process Transaction Sync
         Bukkit.getScheduler().runTask(plugin, () -> {
             BankManager bm = plugin.getBankManager();
             boolean success = false;
@@ -150,14 +184,36 @@ public class BankGUI implements Listener {
                     p.sendMessage(ChatColor.GREEN + "Deposited: " + plugin.getEconomy().format(amount));
                     success = true;
                 } else {
-                    p.sendMessage(ChatColor.RED + "Insufficient funds.");
+                    p.sendMessage(ChatColor.RED + "Insufficient wallet funds.");
                 }
-            } else {
+            }
+            else if (mode.equals("WITHDRAW")) {
                 if (bm.withdraw(p.getUniqueId(), amount)) {
                     p.sendMessage(ChatColor.GREEN + "Withdrawn: " + plugin.getEconomy().format(amount));
                     success = true;
                 } else {
                     p.sendMessage(ChatColor.RED + "Insufficient bank balance.");
+                }
+            }
+            else if (mode.equals("PAY_AMOUNT")) {
+                UUID targetUUID = payTargets.remove(p.getUniqueId());
+                if (targetUUID != null) {
+                    // Transfer: Withdraw from Bank -> Deposit to Target Wallet
+                    if (bm.getBankBalance(p.getUniqueId()) >= amount) {
+                        bm.withdraw(p.getUniqueId(), amount); // Take from Bank
+                        plugin.getEconomy().deposit(targetUUID, amount); // Give to Target Wallet
+
+                        p.sendMessage(ChatColor.GREEN + "Transferred " + plugin.getEconomy().format(amount) + " from bank.");
+
+                        Player target = Bukkit.getPlayer(targetUUID);
+                        if (target != null) {
+                            target.sendMessage(ChatColor.GREEN + "Received " + plugin.getEconomy().format(amount) + " from " + p.getName());
+                            target.playSound(target.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                        }
+                        success = true;
+                    } else {
+                        p.sendMessage(ChatColor.RED + "Insufficient bank funds for transfer.");
+                    }
                 }
             }
 
